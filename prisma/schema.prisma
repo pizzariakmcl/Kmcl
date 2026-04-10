@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String
+  slug      String    @unique
+  sortOrder Int       @default(0)
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  products  Product[]
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  description String
+  price       Float
+  imageUrl    String?
+  active      Boolean   @default(true)
+  inStock     Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+}
+
+model Customer {
+  id          String    @id @default(cuid())
+  nome        String
+  whatsapp    String
+  email       String?
+  cep         String
+  endereco    String
+  numero      String
+  complemento String?
+  bairro      String
+  cidade      String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  orders      Order[]
+}
+
+model Order {
+  id            String      @id @default(cuid())
+  orderNumber   String
+  customerId    String
+  totalAmount   Float
+  paymentMethod String
+  observacao    String?
+  status        String      @default("NOVO")
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  archived      Boolean     @default(false)
+  archivedAt    DateTime?
+
+  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  items         OrderItem[]
+}
+
+model OrderItem {
+  id        String    @id @default(cuid())
+  orderId   String
+  productId String
+  nome      String
+  price     Float
+  quantity  Int
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,23 @@
+cd C:\Users\grego\pizzaria-kmcl
+
+depois 
+1 cd C:\Users\grego\pizzaria-kmcl
+2 npx prisma db push --accept-data-loss
+3 npx prisma generate
+4 npm run dev
+
+
+fdRk4tdAXhuqlYVb
+senha banco de dados
+
+criar produto
+
+http://localhost:3000/admin/categorias
+http://localhost:3000/admin/produtos
+
+
+
+site 
+http://localhost:3000
+
+"postgresql://postgres.lgwvepjaabxootgiuptw:fdRk4tdAXhuqlYVb@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
