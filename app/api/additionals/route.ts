@@ -11,7 +11,8 @@ export async function GET() {
 
     return NextResponse.json(additionals);
   } catch (error) {
-    console.error("Erro ao buscar adicionais:", error);
+    console.error("ERRO REAL AO BUSCAR ADICIONAIS:", error);
+
     return NextResponse.json(
       { error: "Erro ao buscar adicionais" },
       { status: 500 }
@@ -62,15 +63,16 @@ export async function POST(req: NextRequest) {
         name,
         description: description || null,
         price,
+        categoryId,
         isRequired,
         active,
-        categoryId,
       },
     });
 
     return NextResponse.json(additional);
   } catch (error) {
-    console.error("Erro ao criar adicional:", error);
+    console.error("ERRO REAL AO CRIAR ADICIONAL:", error);
+
     return NextResponse.json(
       { error: "Erro ao criar adicional" },
       { status: 500 }

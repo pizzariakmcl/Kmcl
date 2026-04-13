@@ -15,13 +15,14 @@ export async function GET() {
   try {
     const categories = await db.category.findMany({
       orderBy: {
-        createdAt: "desc",
+        sortOrder: "asc",
       },
     });
 
     return NextResponse.json(categories);
   } catch (error) {
-    console.error("Erro ao buscar categorias:", error);
+    console.error("ERRO REAL AO BUSCAR CATEGORIAS:", error);
+
     return NextResponse.json(
       { error: "Erro ao buscar categorias" },
       { status: 500 }
@@ -32,7 +33,12 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+
     const name = String(body.name || "").trim();
+    const description = String(body.description || "").trim();
+    const type = String(body.type || "food").trim().toLowerCase();
+    const sortOrder = Number(body.sortOrder || 0);
+    const active = body.active !== false;
 
     if (!name) {
       return NextResponse.json(
@@ -60,12 +66,17 @@ export async function POST(req: NextRequest) {
       data: {
         name,
         slug,
+        description,
+        type,
+        sortOrder,
+        active,
       },
     });
 
     return NextResponse.json(category);
   } catch (error) {
-    console.error("Erro ao criar categoria:", error);
+    console.error("ERRO REAL AO CRIAR CATEGORIA:", error);
+
     return NextResponse.json(
       { error: "Erro ao criar categoria" },
       { status: 500 }
