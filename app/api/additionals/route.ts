@@ -14,14 +14,11 @@ function makeSlug(name: string) {
 // GET - listar adicionais
 export async function GET() {
   try {
-    const additionals = await db.additional.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        category: true,
-      },
-    });
+const additionals = await db.additional.findMany({
+  orderBy: {
+    createdAt: "desc"
+  }
+});
 
     return NextResponse.json(additionals);
   } catch (error) {
