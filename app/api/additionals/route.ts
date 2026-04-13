@@ -19,7 +19,7 @@ export async function GET() {
         createdAt: "desc",
       },
       include: {
-        categories: true,
+        category: true,
       },
     });
 
