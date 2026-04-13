@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-function makeSlug(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/[^\w-]+/g, "");
-}
-
 // GET - listar adicionais
 export async function GET() {
   try {
@@ -19,7 +9,7 @@ export async function GET() {
         createdAt: "desc",
       },
       include: {
-        categories: true,
+        category: true,
       },
     });
 
@@ -39,8 +29,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const name = String(body.name || "").trim();
+    const description = String(body.description || "").trim();
     const price = Number(body.price || 0);
-    const categoryIds = body.categoryIds || [];
+    const categoryId = String(body.categoryId || "").trim();
+    const isRequired = Boolean(body.isRequired);
+    const active = body.active !== false;
 
     if (!name) {
       return NextResponse.json(
@@ -49,11 +42,16 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const slug = makeSlug(name);
+    if (!categoryId) {
+      return NextResponse.json(
+        { error: "Categoria é obrigatória" },
+        { status: 400 }
+      );
+    }
 
     const existing = await db.additional.findFirst({
       where: {
-        OR: [{ name }, { slug }],
+        name,
       },
     });
 
@@ -67,11 +65,14 @@ export async function POST(req: NextRequest) {
     const additional = await db.additional.create({
       data: {
         name,
-        slug,
+        description: description || null,
         price,
-        categories: {
-          connect: categoryIds.map((id: string) => ({ id })),
-        },
+        isRequired,
+        active,
+        categoryId,
+      },
+      include: {
+        category: true,
       },
     });
 
