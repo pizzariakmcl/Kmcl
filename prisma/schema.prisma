@@ -8,75 +8,90 @@ datasource db {
 }
 
 model Category {
-  id        String    @id @default(cuid())
-  name      String
-  slug      String    @unique
-  sortOrder Int       @default(0)
-  active    Boolean   @default(true)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  description String?
+  type        String       @default("normal")
+  sortOrder   Int          @default(0)
+  active      Boolean      @default(true)
 
-  products  Product[]
+  products    Product[]
+  additionals Additional[]
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 }
 
 model Product {
-  id          String    @id @default(cuid())
+  id          String      @id @default(cuid())
   name        String
-  description String
+  slug        String      @unique
+  description String?
   price       Float
   imageUrl    String?
-  active      Boolean   @default(true)
-  inStock     Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  active      Boolean     @default(true)
+  inStock     Boolean     @default(true)
+  sortOrder   Int         @default(0)
 
   categoryId  String
-  category    Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  orderItems  OrderItem[]
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
-model Customer {
-  id          String    @id @default(cuid())
-  nome        String
-  whatsapp    String
-  email       String?
-  cep         String
-  endereco    String
-  numero      String
-  complemento String?
-  bairro      String
-  cidade      String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+model Additional {
+  id          String      @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  active      Boolean     @default(true)
+  isRequired  Boolean     @default(false)
+  sortOrder   Int         @default(0)
 
-  orders      Order[]
+  categoryId  String
+  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 }
 
 model Order {
   id            String      @id @default(cuid())
-  orderNumber   String
-  customerId    String
-  totalAmount   Float
+  orderNumber   String      @unique
+  customerName  String
+  whatsapp      String
+  cep           String?
+  address       String
+  number        String
+  neighborhood  String
+  city          String
+  complement    String?
   paymentMethod String
-  observacao    String?
+  note          String?
   status        String      @default("NOVO")
+  archived      Boolean     @default(false)
+  total         Float
+
+  items         OrderItem[]
+
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
-  archived      Boolean     @default(false)
-  archivedAt    DateTime?
-
-  customer      Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  items         OrderItem[]
 }
 
 model OrderItem {
-  id        String    @id @default(cuid())
-  orderId   String
-  productId String
-  nome      String
-  price     Float
-  quantity  Int
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  orderId     String
+  productId   String
+  name        String
+  price       Float
+  quantity    Int
 
-  order     Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product   @relation(fields: [productId], references: [id])
+
+  createdAt   DateTime  @default(now())
 }
