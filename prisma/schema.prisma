@@ -95,3 +95,10 @@ model OrderItem {
 
   createdAt   DateTime  @default(now())
 }
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  whatsapp  String
+  createdAt DateTime @default(now())
+}

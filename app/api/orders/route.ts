@@ -4,28 +4,40 @@ import { z } from "zod";
 
 const orderSchema = z.object({
   customer: z.object({
-    nome: z.string().min(2),
-    whatsapp: z.string().min(8),
-    email: z.string().optional(),
-    cep: z.string().min(8),
-    endereco: z.string().min(3),
-    numero: z.string().min(1),
-    complemento: z.string().optional(),
-    bairro: z.string().min(2),
-    cidade: z.string().min(2),
+    name: z.string().min(1),
+    whatsapp: z.string().min(1),
+    address: z.string().min(1),
+    number: z.string().min(1),
+    neighborhood: z.string().min(1),
+    city: z.string().min(1),
+    cep: z.string().optional().nullable(),
+    complement: z.string().optional().nullable(),
   }),
-  paymentMethod: z.string().min(2),
-  observacao: z.string().optional(),
+  paymentMethod: z.string().min(1),
+  observacao: z.string().optional().nullable(),
   totalAmount: z.number().positive(),
-  items: z.array(
-    z.object({
-      productId: z.string(),
-      nome: z.string(),
-      price: z.number().positive(),
-      quantity: z.number().min(1),
-    })
-  ),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1),
+        name: z.string().min(1),
+        price: z.number().positive(),
+        quantity: z.number().int().positive(),
+      })
+    )
+    .min(1),
 });
+
+function generateOrderNumber() {
+  const now = new Date();
+  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
+    now.getDate()
+  ).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(
+    now.getMinutes()
+  ).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+
+  return `KMCL-${stamp}`;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,68 +46,55 @@ export async function POST(req: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: parsed.error.flatten() },
+        { error: "Dados do pedido inválidos", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
 
     const { customer, paymentMethod, observacao, totalAmount, items } = parsed.data;
 
-    const createdCustomer = await db.customer.create({
+    await db.customer.create({
       data: {
-        nome: customer.nome,
+        name: customer.name,
         whatsapp: customer.whatsapp,
-        email: customer.email || null,
-        cep: customer.cep,
-        endereco: customer.endereco,
-        numero: customer.numero,
-        complemento: customer.complemento || null,
-        bairro: customer.bairro,
-        cidade: customer.cidade,
       },
     });
 
-    const createdOrder = await db.order.create({
+    const order = await db.order.create({
       data: {
-        orderNumber: `KMCL-${Date.now()}`,
-        customerId: createdCustomer.id,
-        totalAmount,
+        orderNumber: generateOrderNumber(),
+        customerName: customer.name,
+        whatsapp: customer.whatsapp,
+        cep: customer.cep || null,
+        address: customer.address,
+        number: customer.number,
+        neighborhood: customer.neighborhood,
+        city: customer.city,
+        complement: customer.complement || null,
         paymentMethod,
-        observacao: observacao || null,
+        note: observacao || null,
         status: "NOVO",
-      },
-    });
-
-    await Promise.all(
-      items.map((item) =>
-        db.orderItem.create({
-          data: {
-            orderId: createdOrder.id,
+        archived: false,
+        total: totalAmount,
+        items: {
+          create: items.map((item) => ({
             productId: item.productId,
-            nome: item.nome,
+            name: item.name,
             price: item.price,
             quantity: item.quantity,
-          },
-        })
-      )
-    );
-
-    return NextResponse.json(
-      {
-        success: true,
-        orderId: createdOrder.id,
-        orderNumber: createdOrder.orderNumber,
+          })),
+        },
       },
-      { status: 201 }
-    );
+      include: {
+        items: true,
+      },
+    });
+
+    return NextResponse.json(order, { status: 201 });
   } catch (error) {
-    console.error("ERRO AO CRIAR PEDIDO:", error);
-
+    console.error("Erro ao criar pedido:", error);
     return NextResponse.json(
-      {
-        error: "Erro ao criar pedido",
-        details: String(error),
-      },
+      { error: "Erro interno ao criar pedido" },
       { status: 500 }
     );
   }
