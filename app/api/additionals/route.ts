@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-// GET - listar adicionais
 export async function GET() {
   try {
     const additionals = await db.additional.findMany({
       orderBy: {
         createdAt: "desc",
-      },
-      include: {
-        category: true,
       },
     });
 
@@ -23,7 +19,6 @@ export async function GET() {
   }
 }
 
-// POST - criar adicional
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -70,9 +65,6 @@ export async function POST(req: NextRequest) {
         isRequired,
         active,
         categoryId,
-      },
-      include: {
-        category: true,
       },
     });
 
