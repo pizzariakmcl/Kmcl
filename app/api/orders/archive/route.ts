@@ -1,31 +1,32 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 
-export async function POST() {
+export async function POST(req: NextRequest) {
   try {
-    const now = new Date();
-    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    const body = await req.json();
+    const orderId = String(body.orderId || "").trim();
 
-    await db.order.updateMany({
+    if (!orderId) {
+      return NextResponse.json(
+        { error: "ID do pedido é obrigatório" },
+        { status: 400 }
+      );
+    }
+
+    const order = await db.order.update({
       where: {
-        status: "ENTREGUE",
-        archived: false,
-        updatedAt: {
-          lte: fifteenMinutesAgo,
-        },
+        id: orderId,
       },
       data: {
         archived: true,
-        archivedAt: now,
       },
     });
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json(order);
   } catch (error) {
-    console.error("Erro ao arquivar pedidos:", error);
-
+    console.error("Erro ao arquivar pedido:", error);
     return NextResponse.json(
-      { error: "Erro ao arquivar pedidos" },
+      { error: "Erro ao arquivar pedido" },
       { status: 500 }
     );
   }
