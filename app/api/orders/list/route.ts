@@ -5,8 +5,11 @@ export async function GET() {
   try {
     const orders = await db.order.findMany({
       include: {
-        customer: true,
-        items: true,
+        items: {
+          include: {
+            product: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
@@ -16,7 +19,6 @@ export async function GET() {
     return NextResponse.json(orders);
   } catch (error) {
     console.error("Erro ao buscar pedidos:", error);
-
     return NextResponse.json(
       { error: "Erro ao buscar pedidos" },
       { status: 500 }

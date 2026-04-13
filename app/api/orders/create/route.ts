@@ -26,8 +26,6 @@ export async function POST(req: NextRequest) {
     const complement = String(body.complement || "").trim();
     const paymentMethod = String(body.paymentMethod || "").trim();
     const note = String(body.note || body.observation || "").trim();
-    const status = "NOVO";
-
     const items = Array.isArray(body.items) ? body.items : [];
     const total = Number(body.total || 0);
 
@@ -87,6 +85,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const invalidItem = items.find(
+      (item: any) =>
+        !String(item.productId || "").trim() ||
+        !String(item.name || "").trim() ||
+        Number(item.price || 0) <= 0 ||
+        Number(item.quantity || 0) <= 0
+    );
+
+    if (invalidItem) {
+      return NextResponse.json(
+        { error: "Existe item inválido no pedido" },
+        { status: 400 }
+      );
+    }
+
     const orderNumber = generateOrderNumber();
 
     const order = await db.order.create({
@@ -102,15 +115,15 @@ export async function POST(req: NextRequest) {
         complement: complement || null,
         paymentMethod,
         note: note || null,
-        status,
+        status: "NOVO",
         archived: false,
         total,
         items: {
           create: items.map((item: any) => ({
-            productId: String(item.productId || ""),
-            name: String(item.name || ""),
-            price: Number(item.price || 0),
-            quantity: Number(item.quantity || 1),
+            productId: String(item.productId),
+            name: String(item.name),
+            price: Number(item.price),
+            quantity: Number(item.quantity),
           })),
         },
       },
