@@ -856,7 +856,7 @@ export default function HomePage() {
       />
 
       <div>
-        <h1 className="text-lg font-bold text-black">Pizzaria KMCL</h1>
+        <h1 className="text-lg font-bold text-black">Pizzaria KMCL NOVA</h1>
         <p className="text-xs text-gray-600">Cardápio online</p>
       </div>
     </div>
