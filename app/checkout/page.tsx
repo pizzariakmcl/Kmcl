@@ -61,6 +61,28 @@ export default function CheckoutPage() {
   const deliveryFee = 0;
   const total = subtotal + deliveryFee;
 
+  function buildItemDisplayName(item: CartItem) {
+    let finalName = "Produto";
+
+    if (item.isHalfHalf && item.flavorNames && item.flavorNames.length > 0) {
+      finalName = `Meio a Meio: ${item.flavorNames.join(" + ")}`;
+    } else if (item.isCombo) {
+      finalName = item.name?.trim() || "Combo";
+    } else {
+      finalName = item.name?.trim() || "Produto";
+    }
+
+    if (item.isCombo && item.comboSelectionsSummary?.length) {
+      finalName += ` | Itens: ${item.comboSelectionsSummary.join(" | ")}`;
+    }
+
+    if (item.additionalNames?.length) {
+      finalName += ` | Adicionais: ${item.additionalNames.join(", ")}`;
+    }
+
+    return finalName;
+  }
+
   async function handleFinishOrder() {
     if (cart.length === 0) {
       alert("Seu carrinho está vazio.");
@@ -118,6 +140,25 @@ export default function CheckoutPage() {
     try {
       setIsSubmitting(true);
 
+      const normalizedItems = cart.map((item) => ({
+        productId: item.productId || null,
+        comboId: item.comboId || null,
+        name: buildItemDisplayName(item),
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 1),
+        isHalfHalf: !!item.isHalfHalf,
+        isCombo: !!item.isCombo,
+        flavorIds: Array.isArray(item.flavorIds) ? item.flavorIds : [],
+        flavorNames: Array.isArray(item.flavorNames) ? item.flavorNames : [],
+        comboSelectionsSummary: Array.isArray(item.comboSelectionsSummary)
+          ? item.comboSelectionsSummary
+          : [],
+        additionalIds: Array.isArray(item.additionalIds) ? item.additionalIds : [],
+        additionalNames: Array.isArray(item.additionalNames)
+          ? item.additionalNames
+          : [],
+      }));
+
       const payload = {
         customer: {
           name: customerName.trim(),
@@ -133,21 +174,11 @@ export default function CheckoutPage() {
         changeFor: parsedChangeFor,
         observation: observation.trim() || null,
         totalAmount: Number(total.toFixed(2)),
-        items: cart.map((item) => ({
-          productId: item.productId || null,
-          comboId: item.comboId || null,
-          name: item.name || "Produto",
-          price: Number(item.price || 0),
-          quantity: Number(item.quantity || 1),
-          isHalfHalf: !!item.isHalfHalf,
-          isCombo: !!item.isCombo,
-          flavorIds: item.flavorIds || [],
-          flavorNames: item.flavorNames || [],
-          comboSelectionsSummary: item.comboSelectionsSummary || [],
-          additionalIds: item.additionalIds || [],
-          additionalNames: item.additionalNames || [],
-        })),
+        items: normalizedItems,
       };
+
+      console.log("ITENS NORMALIZADOS:", normalizedItems);
+      console.log("PAYLOAD CHECKOUT:", payload);
 
       const response = await fetch("/api/orders/create", {
         method: "POST",
@@ -161,7 +192,7 @@ export default function CheckoutPage() {
 
       if (!response.ok) {
         console.error("Erro API /api/orders/create:", data);
-        alert(data?.error || "Erro ao criar pedido");
+        alert(data?.error || data?.details || "Erro ao criar pedido");
         return;
       }
 
@@ -185,7 +216,7 @@ export default function CheckoutPage() {
               Finalização
             </p>
 
-            <h2 className="mt-2 text-2xl font-bold text-gray-900 leading-tight">
+            <h2 className="mt-2 text-2xl font-bold leading-tight text-gray-900">
               Revise seus dados e finalize seu pedido com segurança
             </h2>
 
@@ -205,7 +236,9 @@ export default function CheckoutPage() {
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section className="space-y-6">
             <div className="rounded-3xl border border-red-100 bg-white p-6 shadow-sm">
-              <h2 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400>
+              <h3 className="text-xl font-bold text-gray-900">
+                Dados para entrega
+              </h3>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <input
@@ -276,7 +309,9 @@ export default function CheckoutPage() {
               <div className="mt-4">
                 <select
                   value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                  onChange={(e) =>
+                    setPaymentMethod(e.target.value as PaymentMethod)
+                  }
                   className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 >
                   <option value="PIX">Pix</option>
@@ -319,7 +354,9 @@ export default function CheckoutPage() {
           </section>
 
           <aside className="h-fit rounded-3xl border border-red-100 bg-white p-6 shadow-sm">
-            <h2 className="text-2xl font-bold text-gray-900">Resumo do pedido</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Resumo do pedido
+            </h2>
 
             <div className="mt-4 space-y-4">
               {cart.map((item) => (
@@ -368,7 +405,7 @@ export default function CheckoutPage() {
               ))}
             </div>
 
-            <div className="mt-6 border-t pt-4 space-y-2">
+            <div className="mt-6 space-y-2 border-t pt-4">
               <div className="flex items-center justify-between text-sm text-gray-700">
                 <span>Subtotal</span>
                 <span>R$ {subtotal.toFixed(2)}</span>
