@@ -9,27 +9,15 @@ type CartItem = {
   name: string;
   price: number;
   quantity: number;
+  isHalfHalf?: boolean;
+  isCombo?: boolean;
+  comboId?: string;
+  comboSelectionsSummary?: string[];
+  flavorIds?: string[];
+  flavorNames?: string[];
+  additionalIds?: string[];
+  additionalNames?: string[];
 };
-
-function normalizeCart(items: CartItem[]) {
-  const map = new Map<string, CartItem>();
-
-  for (const item of items) {
-    const existing = map.get(item.productId);
-
-    if (existing) {
-      existing.quantity += Number(item.quantity);
-    } else {
-      map.set(item.productId, {
-        ...item,
-        price: Number(item.price),
-        quantity: Number(item.quantity),
-      });
-    }
-  }
-
-  return Array.from(map.values());
-}
 
 export default function CarrinhoPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -40,9 +28,7 @@ export default function CarrinhoPage() {
     if (savedCart) {
       try {
         const parsed = JSON.parse(savedCart);
-        const normalized = normalizeCart(Array.isArray(parsed) ? parsed : []);
-        setCart(normalized);
-        localStorage.setItem("cart", JSON.stringify(normalized));
+        setCart(Array.isArray(parsed) ? parsed : []);
       } catch {
         setCart([]);
       }
@@ -50,14 +36,13 @@ export default function CarrinhoPage() {
   }, []);
 
   function saveCart(nextCart: CartItem[]) {
-    const normalized = normalizeCart(nextCart);
-    setCart(normalized);
-    localStorage.setItem("cart", JSON.stringify(normalized));
+    setCart(nextCart);
+    localStorage.setItem("cart", JSON.stringify(nextCart));
   }
 
-  function increaseQuantity(productId: string) {
+  function increaseQuantity(itemId: string) {
     const nextCart = cart.map((item) =>
-      item.productId === productId
+      item.id === itemId
         ? { ...item, quantity: Number(item.quantity) + 1 }
         : item
     );
@@ -65,174 +50,221 @@ export default function CarrinhoPage() {
     saveCart(nextCart);
   }
 
-  function decreaseQuantity(productId: string) {
-    const nextCart = cart
-      .map((item) =>
-        item.productId === productId
-          ? { ...item, quantity: Number(item.quantity) - 1 }
-          : item
-      )
-      .filter((item) => item.quantity > 0);
+  function decreaseQuantity(itemId: string) {
+    const current = cart.find((item) => item.id === itemId);
+    if (!current) return;
+
+    if (Number(current.quantity) <= 1) {
+      removeItem(itemId);
+      return;
+    }
+
+    const nextCart = cart.map((item) =>
+      item.id === itemId
+        ? { ...item, quantity: Number(item.quantity) - 1 }
+        : item
+    );
 
     saveCart(nextCart);
   }
 
-  function removeItem(productId: string) {
-    const nextCart = cart.filter((item) => item.productId !== productId);
+  function removeItem(itemId: string) {
+    const nextCart = cart.filter((item) => item.id !== itemId);
     saveCart(nextCart);
   }
 
   function clearCart() {
-    const confirmed = confirm("Deseja limpar todo o carrinho?");
-    if (!confirmed) return;
-
-    setCart([]);
-    localStorage.removeItem("cart");
+    saveCart([]);
   }
 
-  const totalItems = useMemo(() => {
-    return cart.reduce((acc, item) => acc + Number(item.quantity), 0);
-  }, [cart]);
+  const totalItems = useMemo(
+    () => cart.reduce((acc, item) => acc + Number(item.quantity), 0),
+    [cart]
+  );
 
-  const totalPrice = useMemo(() => {
-    return cart.reduce(
-      (acc, item) => acc + Number(item.price) * Number(item.quantity),
-      0
-    );
-  }, [cart]);
+  const totalPrice = useMemo(
+    () =>
+      cart.reduce(
+        (acc, item) => acc + Number(item.price) * Number(item.quantity),
+        0
+      ),
+    [cart]
+  );
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-white to-red-50 text-black">
-      <div className="mx-auto max-w-4xl px-4 py-6">
-        <header className="mb-6 flex items-center justify-between">
+    <main className="min-h-screen bg-gradient-to-b from-white to-red-100 px-4 py-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-red-600">
+            <p className="text-sm font-semibold uppercase tracking-wider text-red-500">
               Seu pedido
             </p>
-            <h1 className="text-3xl font-black">Carrinho</h1>
+            <h1 className="text-4xl font-bold text-gray-900">Carrinho</h1>
           </div>
 
           <Link
             href="/"
-            className="rounded-xl border border-red-200 bg-white px-4 py-2 font-bold text-red-600"
+            className="rounded-xl border border-red-200 bg-white px-4 py-2 font-semibold text-red-600 shadow-sm"
           >
             ← Voltar ao cardápio
           </Link>
-        </header>
+        </div>
 
         {cart.length === 0 ? (
-          <div className="rounded-3xl border border-red-100 bg-white p-8 text-center shadow-sm">
+          <div className="rounded-3xl border border-red-100 bg-white p-10 text-center shadow-sm">
             <div className="mb-3 text-5xl">🛒</div>
-            <h2 className="text-2xl font-bold">Seu carrinho está vazio</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              Seu carrinho está vazio
+            </h2>
             <p className="mt-2 text-gray-600">
-              Adicione produtos para continuar seu pedido.
+              Adicione pizzas, produtos ou combos para continuar.
             </p>
 
             <Link
               href="/"
-              className="mt-6 inline-block rounded-2xl bg-red-600 px-5 py-3 font-bold text-white"
+              className="mt-6 inline-block rounded-xl bg-red-600 px-5 py-3 font-bold text-white"
             >
-              Ver cardápio
+              Ir para o cardápio
             </Link>
           </div>
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-            <section className="space-y-4">
+          <div className="grid gap-6 lg:grid-cols-[1.5fr_0.8fr]">
+            <div className="space-y-4">
               {cart.map((item) => {
                 const subtotal = Number(item.price) * Number(item.quantity);
 
                 return (
-                  <article
-                    key={item.productId}
-                    className="rounded-3xl border border-red-100 bg-white p-4 shadow-sm"
+                  <div
+                    key={item.id}
+                    className="rounded-3xl border border-red-100 bg-white p-5 shadow-sm"
                   >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex gap-4">
-                        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-red-100 text-3xl">
-                          🍕
+                    <div className="flex gap-4">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl bg-red-50 text-3xl">
+                        {item.isCombo ? "🎁" : "🍕"}
+                      </div>
+
+                      <div className="flex flex-1 flex-col gap-3">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div>
+                            <h3 className="text-xl font-bold text-gray-900">
+                              {item.isCombo
+                                ? item.name
+                                : item.isHalfHalf
+                                ? "Pizza Meio a Meio"
+                                : item.name}
+                            </h3>
+
+                            {item.isHalfHalf && item.flavorNames?.length ? (
+                              <p className="mt-1 text-sm text-gray-600">
+                                Sabores: {item.flavorNames.join(" + ")}
+                              </p>
+                            ) : null}
+
+                            {!item.isHalfHalf && !item.isCombo && (
+                              <p className="mt-1 text-sm text-gray-600">
+                                Produto individual
+                              </p>
+                            )}
+
+                            {item.isCombo &&
+                              item.comboSelectionsSummary &&
+                              item.comboSelectionsSummary.length > 0 && (
+                                <div className="mt-2 space-y-1">
+                                  {item.comboSelectionsSummary.map(
+                                    (line, index) => (
+                                      <p
+                                        key={`${item.id}-combo-${index}`}
+                                        className="text-sm text-gray-600"
+                                      >
+                                        {line}
+                                      </p>
+                                    )
+                                  )}
+                                </div>
+                              )}
+
+                            {item.additionalNames &&
+                              item.additionalNames.length > 0 && (
+                                <p className="mt-1 text-sm text-gray-600">
+                                  Adicionais: {item.additionalNames.join(", ")}
+                                </p>
+                              )}
+
+                            <p className="mt-2 text-sm text-gray-600">
+                              Unitário: R$ {Number(item.price).toFixed(2)}
+                            </p>
+
+                            <p className="font-bold text-red-600">
+                              Subtotal: R$ {subtotal.toFixed(2)}
+                            </p>
+                          </div>
+
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-600"
+                          >
+                            Remover
+                          </button>
                         </div>
 
                         <div>
-                          <h2 className="text-lg font-bold">{item.name}</h2>
-                          <p className="text-sm text-gray-500">
-                            Unitário: R$ {Number(item.price).toFixed(2)}
-                          </p>
-                          <p className="mt-1 font-bold text-red-600">
-                            Subtotal: R$ {subtotal.toFixed(2)}
-                          </p>
+                          <p className="mb-2 text-sm text-gray-500">Quantidade</p>
+
+                          <div className="inline-flex items-center gap-2 rounded-2xl bg-red-50 px-3 py-2">
+                            <button
+                              onClick={() => decreaseQuantity(item.id)}
+                              className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 font-bold text-white"
+                            >
+                              -
+                            </button>
+
+                            <span className="min-w-[24px] text-center font-bold text-gray-900">
+                              {item.quantity}
+                            </span>
+
+                            <button
+                              onClick={() => increaseQuantity(item.id)}
+                              className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 font-bold text-white"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
                       </div>
-
-                      <button
-                        onClick={() => removeItem(item.productId)}
-                        className="rounded-xl border border-red-200 px-3 py-2 text-sm font-bold text-red-600"
-                      >
-                        Remover
-                      </button>
                     </div>
-
-                    <div className="mt-4 flex items-center justify-between">
-                      <p className="text-sm font-medium text-gray-600">
-                        Quantidade
-                      </p>
-
-                      <div className="flex items-center gap-3 rounded-2xl bg-red-50 px-3 py-2">
-                        <button
-                          onClick={() => decreaseQuantity(item.productId)}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-lg font-bold text-white"
-                        >
-                          -
-                        </button>
-
-                        <span className="min-w-[24px] text-center text-lg font-bold">
-                          {item.quantity}
-                        </span>
-
-                        <button
-                          onClick={() => increaseQuantity(item.productId)}
-                          className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-600 text-lg font-bold text-white"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </div>
-                  </article>
+                  </div>
                 );
               })}
-            </section>
+            </div>
 
-            <aside className="sticky top-4 h-fit rounded-3xl border border-red-100 bg-white p-5 shadow-sm">
-              <h2 className="text-xl font-black">Resumo do pedido</h2>
+            <aside className="h-fit rounded-3xl border border-red-100 bg-white p-6 shadow-sm">
+              <h2 className="text-2xl font-bold text-gray-900">Resumo do pedido</h2>
 
-              <div className="mt-4 space-y-3 text-sm">
-                <div className="flex items-center justify-between">
+              <div className="mt-5 space-y-3 text-sm">
+                <div className="flex items-center justify-between text-gray-600">
                   <span>Itens</span>
-                  <strong>{totalItems}</strong>
+                  <span>{totalItems}</span>
                 </div>
 
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between border-t pt-3 text-lg font-bold text-gray-900">
                   <span>Total</span>
-                  <strong className="text-2xl text-red-600">
-                    R$ {totalPrice.toFixed(2)}
-                  </strong>
+                  <span className="text-red-600">R$ {totalPrice.toFixed(2)}</span>
                 </div>
               </div>
 
-              <div className="mt-6 space-y-3">
-                <Link
-                  href="/checkout"
-                  className="block w-full rounded-2xl bg-red-600 px-4 py-3 text-center font-bold text-white"
-                >
-                  Ir para checkout
-                </Link>
+              <Link
+                href="/checkout"
+                className="mt-6 block rounded-xl bg-red-600 px-4 py-3 text-center font-bold text-white"
+              >
+                Ir para checkout
+              </Link>
 
-                <button
-                  onClick={clearCart}
-                  className="w-full rounded-2xl border border-red-200 px-4 py-3 font-bold text-red-600"
-                >
-                  Limpar carrinho
-                </button>
-              </div>
+              <button
+                onClick={clearCart}
+                className="mt-3 w-full rounded-xl border border-red-200 px-4 py-3 font-semibold text-red-600"
+              >
+                Limpar carrinho
+              </button>
             </aside>
           </div>
         )}

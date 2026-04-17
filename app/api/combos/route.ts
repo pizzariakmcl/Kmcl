@@ -11,7 +11,7 @@ function makeSlug(value: string) {
     .replace(/[^a-z0-9-]/g, "");
 }
 
-type ProductAdditionalInput = {
+type ComboAdditionalInput = {
   additionalId: string;
   required?: boolean;
   sortOrder?: number;
@@ -19,20 +19,27 @@ type ProductAdditionalInput = {
 
 export async function GET() {
   try {
-    const products = await prisma.product.findMany({
+    const combos = await prisma.combo.findMany({
       orderBy: {
         sortOrder: "asc",
       },
       include: {
-        categories: {
+        groups: {
           orderBy: {
             sortOrder: "asc",
           },
           include: {
-            category: true,
+            items: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+              include: {
+                product: true,
+              },
+            },
           },
         },
-        productAdditionalConfigs: {
+        comboAdditionalConfigs: {
           orderBy: {
             sortOrder: "asc",
           },
@@ -43,13 +50,13 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json(products, { status: 200 });
+    return NextResponse.json(combos, { status: 200 });
   } catch (error) {
-    console.error("ERRO AO BUSCAR PRODUTOS:", error);
+    console.error("ERRO AO BUSCAR COMBOS:", error);
 
     return NextResponse.json(
       {
-        error: "Erro ao buscar produtos",
+        error: "Erro ao buscar combos",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
@@ -74,43 +81,20 @@ export async function POST(req: NextRequest) {
         : null;
 
     const active = body?.active === undefined ? true : Boolean(body.active);
-    const inStock = body?.inStock === undefined ? true : Boolean(body.inStock);
-    const required =
-      body?.required === undefined ? true : Boolean(body.required);
-
     const sortOrder =
       body?.sortOrder === undefined || body?.sortOrder === null
         ? 0
         : Number(body.sortOrder);
 
-    const categoryIdsRaw: unknown[] = Array.isArray(body?.categoryIds)
-      ? body.categoryIds
-      : [];
-
-    const categoryIds: string[] = [
-      ...new Set(
-        categoryIdsRaw
-          .map((item) => String(item ?? "").trim())
-          .filter((item) => item.length > 0)
-      ),
-    ];
-
-    const productAdditionalConfigs: ProductAdditionalInput[] = Array.isArray(
-      body?.productAdditionalConfigs
+    const comboAdditionalConfigs: ComboAdditionalInput[] = Array.isArray(
+      body?.comboAdditionalConfigs
     )
-      ? body.productAdditionalConfigs
+      ? body.comboAdditionalConfigs
       : [];
 
     if (!name) {
       return NextResponse.json(
-        { error: "Nome do produto é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    if (!categoryIds.length) {
-      return NextResponse.json(
-        { error: "Selecione pelo menos uma categoria" },
+        { error: "Nome do combo é obrigatório" },
         { status: 400 }
       );
     }
@@ -129,31 +113,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const categoriesFound = await prisma.category.findMany({
-      where: {
-        id: {
-          in: categoryIds,
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (categoriesFound.length !== categoryIds.length) {
-      return NextResponse.json(
-        { error: "Uma ou mais categorias não foram encontradas" },
-        { status: 404 }
-      );
-    }
-
     let slug = makeSlug(name);
 
     if (!slug) {
-      slug = `produto-${Date.now()}`;
+      slug = `combo-${Date.now()}`;
     }
 
-    const existingSlug = await prisma.product.findUnique({
+    const existingSlug = await prisma.combo.findUnique({
       where: { slug },
     });
 
@@ -161,7 +127,7 @@ export async function POST(req: NextRequest) {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const validConfigs = productAdditionalConfigs
+    const validAdditionalConfigs = comboAdditionalConfigs
       .filter((item) => item?.additionalId)
       .map((item, index) => ({
         additionalId: String(item.additionalId).trim(),
@@ -172,7 +138,7 @@ export async function POST(req: NextRequest) {
             : index,
       }));
 
-    const product = await prisma.product.create({
+    const combo = await prisma.combo.create({
       data: {
         name,
         slug,
@@ -180,30 +146,28 @@ export async function POST(req: NextRequest) {
         price,
         imageUrl: imageUrl || null,
         active,
-        inStock,
-        required,
         sortOrder,
-        categoryId: categoryIds[0],
-        categories: {
-          create: categoryIds.map((categoryId: string, index: number) => ({
-            categoryId,
-            sortOrder: index,
-          })),
-        },
-        productAdditionalConfigs: {
-          create: validConfigs,
+        comboAdditionalConfigs: {
+          create: validAdditionalConfigs,
         },
       },
       include: {
-        categories: {
+        groups: {
           orderBy: {
             sortOrder: "asc",
           },
           include: {
-            category: true,
+            items: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+              include: {
+                product: true,
+              },
+            },
           },
         },
-        productAdditionalConfigs: {
+        comboAdditionalConfigs: {
           orderBy: {
             sortOrder: "asc",
           },
@@ -214,13 +178,13 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    return NextResponse.json(product, { status: 201 });
+    return NextResponse.json(combo, { status: 201 });
   } catch (error) {
-    console.error("ERRO AO CRIAR PRODUTO:", error);
+    console.error("ERRO AO CRIAR COMBO:", error);
 
     return NextResponse.json(
       {
-        error: "Erro ao criar produto",
+        error: "Erro ao criar combo",
         details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }

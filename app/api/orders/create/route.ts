@@ -1,33 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
+import { PaymentMethod, OrderStatus } from "@prisma/client";
 
-function generateOrderNumber() {
-  const now = new Date();
-  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
-    now.getDate()
-  ).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(
-    now.getMinutes()
-  ).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
-
-  return `KMCL-${stamp}`;
+function generateOrderCode() {
+  return `PED-${Date.now()}`;
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    const customerName = String(body.customerName || body.name || "").trim();
-    const whatsapp = String(body.whatsapp || "").trim();
-    const cep = String(body.cep || "").trim();
-    const address = String(body.address || "").trim();
-    const number = String(body.number || "").trim();
-    const neighborhood = String(body.neighborhood || body.bairro || "").trim();
-    const city = String(body.city || "").trim();
-    const complement = String(body.complement || "").trim();
-    const paymentMethod = String(body.paymentMethod || "").trim();
-    const note = String(body.note || body.observation || "").trim();
-    const items = Array.isArray(body.items) ? body.items : [];
-    const total = Number(body.total || 0);
+    const customer = body?.customer || {};
+    const items = Array.isArray(body?.items) ? body.items : [];
+
+    const customerName = String(customer?.name || "").trim();
+    const customerWhatsapp = String(customer?.whatsapp || "").trim();
+    const customerEmail =
+      customer?.email && String(customer.email).trim() !== ""
+        ? String(customer.email).trim()
+        : null;
+
+    const observation =
+      body?.observation && String(body.observation).trim() !== ""
+        ? String(body.observation).trim()
+        : null;
+
+    const totalAmount = Number(body?.totalAmount || 0);
+
+    // 🔥 CORREÇÃO DO PAYMENT METHOD
+    const paymentMethodRaw = String(body?.paymentMethod || "PIX")
+      .trim()
+      .toUpperCase();
+
+    const allowedPaymentMethods: PaymentMethod[] = [
+      "PIX",
+      "DINHEIRO",
+      "DEBITO",
+      "CREDITO",
+    ];
+
+    const paymentMethod: PaymentMethod = allowedPaymentMethods.includes(
+      paymentMethodRaw as PaymentMethod
+    )
+      ? (paymentMethodRaw as PaymentMethod)
+      : "PIX";
 
     if (!customerName) {
       return NextResponse.json(
@@ -36,107 +52,66 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!whatsapp) {
+    if (!customerWhatsapp) {
       return NextResponse.json(
         { error: "WhatsApp é obrigatório" },
         { status: 400 }
       );
     }
 
-    if (!address) {
-      return NextResponse.json(
-        { error: "Endereço é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    if (!number) {
-      return NextResponse.json(
-        { error: "Número é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    if (!neighborhood) {
-      return NextResponse.json(
-        { error: "Bairro é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    if (!city) {
-      return NextResponse.json(
-        { error: "Cidade é obrigatória" },
-        { status: 400 }
-      );
-    }
-
-    if (!paymentMethod) {
-      return NextResponse.json(
-        { error: "Forma de pagamento é obrigatória" },
-        { status: 400 }
-      );
-    }
-
     if (!items.length) {
       return NextResponse.json(
-        { error: "O pedido precisa ter ao menos 1 item" },
+        { error: "Pedido sem itens" },
         { status: 400 }
       );
     }
 
-    const invalidItem = items.find(
-      (item: any) =>
-        !String(item.productId || "").trim() ||
-        !String(item.name || "").trim() ||
-        Number(item.price || 0) <= 0 ||
-        Number(item.quantity || 0) <= 0
-    );
-
-    if (invalidItem) {
-      return NextResponse.json(
-        { error: "Existe item inválido no pedido" },
-        { status: 400 }
-      );
-    }
-
-    const orderNumber = generateOrderNumber();
-
-    const order = await db.order.create({
+    // cria cliente
+    const createdCustomer = await prisma.customer.create({
       data: {
-        orderNumber,
-        customerName,
-        whatsapp,
-        cep: cep || null,
-        address,
-        number,
-        neighborhood,
-        city,
-        complement: complement || null,
+        name: customerName,
+        whatsapp: customerWhatsapp,
+        email: customerEmail,
+      },
+    });
+
+    // cria pedido
+    const order = await prisma.order.create({
+      data: {
+        code: generateOrderCode(),
+        customerId: createdCustomer.id,
         paymentMethod,
-        note: note || null,
-        status: "NOVO",
-        archived: false,
-        total,
+        observation,
+        total: totalAmount,
+        status: "NOVO" as OrderStatus,
+
         items: {
           create: items.map((item: any) => ({
-            productId: String(item.productId),
-            name: String(item.name),
-            price: Number(item.price),
-            quantity: Number(item.quantity),
+            productId: item.productId || null,
+            name: String(item.name || "Produto"),
+            price: Number(item.price || 0),
+            quantity: Number(item.quantity || 1),
           })),
         },
       },
       include: {
         items: true,
+        customer: true,
       },
     });
 
-    return NextResponse.json(order);
-  } catch (error) {
-    console.error("Erro ao criar pedido:", error);
+    return NextResponse.json(order, { status: 201 });
+  } catch (error: any) {
+    console.error("ERRO CREATE ORDER:", error);
+
     return NextResponse.json(
-      { error: "Erro ao criar pedido" },
+      {
+        error: "Erro ao criar pedido",
+        details:
+          process.env.NODE_ENV === "development"
+            ? String(error?.message || "Erro desconhecido")
+            : undefined,
+      },
       { status: 500 }
     );
   }

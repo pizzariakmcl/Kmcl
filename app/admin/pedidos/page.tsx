@@ -4,35 +4,41 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 type Customer = {
   id: string;
-  nome: string;
+  name: string;
   whatsapp: string;
   email?: string | null;
-  endereco: string;
-  numero: string;
-  complemento?: string | null;
-  bairro: string;
-  cidade: string;
-  cep: string;
+  address?: string | null;
+  number?: string | null;
+  complement?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  cep?: string | null;
 };
 
 type OrderItem = {
   id: string;
-  nome: string;
+  name: string;
   price: number | string;
   quantity: number;
 };
 
 type Order = {
   id: string;
-  orderNumber: string;
-  totalAmount: number | string;
+  code?: string | null;
+  total: number | string;
   paymentMethod: string;
-  observacao?: string | null;
-  status: "NOVO" | "EM_PREPARO" | "SAIU_PARA_ENTREGA" | "ENTREGUE" | "CANCELADO" | "ENTREGA";
+  observation?: string | null;
+  status:
+    | "NOVO"
+    | "EM_PREPARO"
+    | "SAIU_PARA_ENTREGA"
+    | "ENTREGUE"
+    | "CANCELADO";
   createdAt: string;
   updatedAt: string;
   archived: boolean;
   archivedAt?: string | null;
+  changeFor?: string | null;
   customer?: Customer | null;
   items?: OrderItem[];
 };
@@ -53,13 +59,52 @@ type StatusFilter =
   | "ENTREGUE"
   | "CANCELADO";
 
+const DELAY_MINUTES = 120;
+
 export default function PedidosPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>("HOJE");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("TODOS");
   const [search, setSearch] = useState("");
+
   const previousOrdersCount = useRef(0);
+  const previousDelayedIds = useRef<string[]>([]);
+  const audioUnlockedRef = useRef(false);
+  const notificationAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    notificationAudioRef.current = new Audio("/notification.mp3");
+    notificationAudioRef.current.preload = "auto";
+
+    const unlockAudio = async () => {
+      if (audioUnlockedRef.current) return;
+      try {
+        if (!notificationAudioRef.current) return;
+        notificationAudioRef.current.volume = 1;
+        await notificationAudioRef.current.play();
+        notificationAudioRef.current.pause();
+        notificationAudioRef.current.currentTime = 0;
+        audioUnlockedRef.current = true;
+      } catch {
+        // navegador pode bloquear até a primeira interação válida
+      }
+    };
+
+    const handleUserGesture = () => {
+      unlockAudio();
+    };
+
+    window.addEventListener("click", handleUserGesture, { passive: true });
+    window.addEventListener("touchstart", handleUserGesture, { passive: true });
+    window.addEventListener("keydown", handleUserGesture);
+
+    return () => {
+      window.removeEventListener("click", handleUserGesture);
+      window.removeEventListener("touchstart", handleUserGesture);
+      window.removeEventListener("keydown", handleUserGesture);
+    };
+  }, []);
 
   useEffect(() => {
     loadOrders();
@@ -79,6 +124,33 @@ export default function PedidosPage() {
     return () => clearInterval(interval);
   }, []);
 
+  async function playNotificationSound() {
+    try {
+      if (!notificationAudioRef.current) {
+        notificationAudioRef.current = new Audio("/notification.mp3");
+      }
+
+      notificationAudioRef.current.pause();
+      notificationAudioRef.current.currentTime = 0;
+      await notificationAudioRef.current.play();
+    } catch (error) {
+      console.warn("Som bloqueado ou arquivo não encontrado:", error);
+    }
+  }
+
+  function isDelayedOrder(order: Order) {
+    if (order.archived) return false;
+    if (order.status !== "EM_PREPARO") return false;
+
+    const updatedAtDate = new Date(order.updatedAt || order.createdAt);
+    const now = new Date();
+
+    const diffMs = now.getTime() - updatedAtDate.getTime();
+    const diffMinutes = diffMs / (1000 * 60);
+
+    return diffMinutes >= DELAY_MINUTES;
+  }
+
   async function loadOrders() {
     try {
       const res = await fetch("/api/orders/list", { cache: "no-store" });
@@ -89,15 +161,29 @@ export default function PedidosPage() {
           (order: Order) => !order.archived
         ).length;
 
+        const delayedIdsNow = data
+          .filter((order: Order) => isDelayedOrder(order))
+          .map((order: Order) => order.id);
+
+        const previousDelayedSet = new Set(previousDelayedIds.current);
+        const hasNewDelayedOrder = delayedIdsNow.some(
+          (id) => !previousDelayedSet.has(id)
+        );
+
         if (
           previousOrdersCount.current > 0 &&
           currentActiveCount > previousOrdersCount.current
         ) {
-          const audio = new Audio("/notification.mp3");
-          audio.play().catch(() => {});
+          await playNotificationSound();
+        }
+
+        if (hasNewDelayedOrder) {
+          await playNotificationSound();
+          alert("Atenção: existe pedido em atraso no funil.");
         }
 
         previousOrdersCount.current = currentActiveCount;
+        previousDelayedIds.current = delayedIdsNow;
         setOrders(data);
       } else {
         setOrders([]);
@@ -108,24 +194,82 @@ export default function PedidosPage() {
     }
   }
 
+  function getOrderCode(order: Order) {
+    return order.code || `PED-${order.id.slice(0, 8)}`;
+  }
+
+  function toMoney(value: unknown) {
+    if (typeof value === "number") {
+      return Number.isFinite(value) ? value : 0;
+    }
+
+    if (typeof value === "string") {
+      const cleaned = value.replace(/\s/g, "").replace("R$", "").trim();
+
+      if (!cleaned) return 0;
+
+      const hasComma = cleaned.includes(",");
+      const normalized = hasComma
+        ? cleaned.replace(/\./g, "").replace(",", ".")
+        : cleaned;
+
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    return 0;
+  }
+
+  function getItemsTotal(order: Order) {
+    if (!order.items || order.items.length === 0) return 0;
+
+    return order.items.reduce((acc, item) => {
+      return acc + toMoney(item.price) * Number(item.quantity || 0);
+    }, 0);
+  }
+
+  function getOrderTotal(order: Order) {
+    const savedTotal = toMoney(order.total);
+    const itemsTotal = getItemsTotal(order);
+
+    if (savedTotal > 0) return savedTotal;
+    if (itemsTotal > 0) return itemsTotal;
+    return 0;
+  }
+
   function formatAddress(customer?: Customer | null) {
     if (!customer) return "Cliente não encontrado";
 
-    const complemento = customer.complemento
-      ? `, ${customer.complemento}`
-      : "";
+    const address = String(customer.address || "").trim();
+    const number = String(customer.number || "").trim();
+    const complement = String(customer.complement || "").trim();
+    const neighborhood = String(customer.neighborhood || "").trim();
+    const city = String(customer.city || "").trim();
+    const cep = String(customer.cep || "").trim();
 
-    return `${customer.endereco}, ${customer.numero}${complemento} - ${customer.bairro}, ${customer.cidade} - CEP: ${customer.cep}`;
+    const line1 = [address, number].filter(Boolean).join(", ");
+    const line1WithComplement = [line1, complement].filter(Boolean).join(" - ");
+    const line2 = [neighborhood, city].filter(Boolean).join(" - ");
+
+    const finalParts = [
+      line1WithComplement,
+      line2,
+      cep ? `CEP: ${cep}` : "",
+    ].filter(Boolean);
+
+    return finalParts.length > 0
+      ? finalParts.join(" | ")
+      : "Endereço não informado";
   }
 
   function getWhatsappMessage(order: Order) {
-    const nome = order.customer?.nome || "cliente";
-    const pedido = order.orderNumber;
+    const nome = order.customer?.name || "cliente";
+    const pedido = getOrderCode(order);
 
     return `Olá, ${nome}! 🛵
 
 Seu pedido ${pedido} saiu para entrega e em breve estará com você.
-Agradecemos muito a sua preferência e atenção.
+Agradecemos muito a sua preferência.
 
 Qualquer dúvida, estamos à disposição!`;
   }
@@ -144,13 +288,15 @@ Qualquer dúvida, estamos à disposição!`;
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
+    const orderTotal = getOrderTotal(order);
+
     const itemsHtml =
       order.items
         ?.map(
           (item) => `
             <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:4px;">
-              <span>${item.quantity}x ${item.nome}</span>
-              <span>R$ ${(Number(item.price) * Number(item.quantity)).toFixed(2)}</span>
+              <span>${item.quantity}x ${item.name}</span>
+              <span>R$ ${(toMoney(item.price) * Number(item.quantity)).toFixed(2)}</span>
             </div>
           `
         )
@@ -159,7 +305,7 @@ Qualquer dúvida, estamos à disposição!`;
     printWindow.document.write(`
       <html>
         <head>
-          <title>Pedido ${order.orderNumber}</title>
+          <title>Pedido ${getOrderCode(order)}</title>
           <style>
             body {
               font-family: monospace;
@@ -186,8 +332,8 @@ Qualquer dúvida, estamos à disposição!`;
 
           <div class="divider"></div>
 
-          <p><strong>Pedido:</strong> ${order.orderNumber}</p>
-          <p><strong>Cliente:</strong> ${order.customer?.nome || ""}</p>
+          <p><strong>Pedido:</strong> ${getOrderCode(order)}</p>
+          <p><strong>Cliente:</strong> ${order.customer?.name || ""}</p>
           <p><strong>WhatsApp:</strong> ${order.customer?.whatsapp || ""}</p>
           <p><strong>Endereço:</strong> ${formatAddress(order.customer)}</p>
 
@@ -198,11 +344,12 @@ Qualquer dúvida, estamos à disposição!`;
 
           <div class="divider"></div>
 
-          <p><strong>Total:</strong> R$ ${Number(order.totalAmount).toFixed(2)}</p>
+          <p><strong>Total:</strong> R$ ${orderTotal.toFixed(2)}</p>
           <p><strong>Pagamento:</strong> ${order.paymentMethod}</p>
           <p><strong>Status:</strong> ${order.status}</p>
 
-          ${order.observacao ? `<p><strong>Obs:</strong> ${order.observacao}</p>` : ""}
+          ${order.changeFor ? `<p><strong>Troco para:</strong> R$ ${order.changeFor}</p>` : ""}
+          ${order.observation ? `<p><strong>Obs:</strong> ${order.observation}</p>` : ""}
 
           <div class="divider"></div>
 
@@ -234,7 +381,7 @@ Qualquer dúvida, estamos à disposição!`;
         }),
       });
 
-      const data = await res.json();
+      await res.json().catch(() => null);
 
       if (!res.ok) {
         alert("Erro ao atualizar status");
@@ -269,7 +416,7 @@ Qualquer dúvida, estamos à disposição!`;
         body: JSON.stringify({ orderId }),
       });
 
-      const data = await res.json();
+      await res.json().catch(() => null);
 
       if (!res.ok) {
         alert("Erro ao excluir pedido");
@@ -298,10 +445,10 @@ Qualquer dúvida, estamos à disposição!`;
     ];
 
     const rows = filteredOrders.map((order) => [
-      order.orderNumber,
-      order.customer?.nome || "",
+      getOrderCode(order),
+      order.customer?.name || "",
       order.customer?.whatsapp || "",
-      Number(order.totalAmount).toFixed(2),
+      getOrderTotal(order).toFixed(2),
       order.paymentMethod,
       order.status,
       order.archived ? "SIM" : "NAO",
@@ -388,9 +535,9 @@ Qualquer dúvida, estamos à disposição!`;
     if (!term) return periodFilteredOrders;
 
     return periodFilteredOrders.filter((order) => {
-      const nome = order.customer?.nome?.toLowerCase() || "";
+      const nome = order.customer?.name?.toLowerCase() || "";
       const whatsapp = order.customer?.whatsapp?.toLowerCase() || "";
-      const number = order.orderNumber?.toLowerCase() || "";
+      const number = getOrderCode(order).toLowerCase();
 
       return nome.includes(term) || whatsapp.includes(term) || number.includes(term);
     });
@@ -398,12 +545,7 @@ Qualquer dúvida, estamos à disposição!`;
 
   const filteredOrders = useMemo(() => {
     if (statusFilter === "TODOS") return searchFilteredOrders;
-    return searchFilteredOrders.filter((o) => {
-      if (statusFilter === "ENTREGUE") {
-        return o.status === "ENTREGUE" || o.status === "ENTREGA";
-      }
-      return o.status === statusFilter;
-    });
+    return searchFilteredOrders.filter((o) => o.status === statusFilter);
   }, [searchFilteredOrders, statusFilter]);
 
   const filteredActiveOrders = useMemo(() => {
@@ -419,9 +561,7 @@ Qualquer dúvida, estamos à disposição!`;
   }, [orders]);
 
   const deliveredTodayOrders = useMemo(() => {
-    return todayOrders.filter(
-      (order) => order.status === "ENTREGUE" || order.status === "ENTREGA"
-    );
+    return todayOrders.filter((order) => order.status === "ENTREGUE");
   }, [todayOrders]);
 
   const canceledTodayOrders = useMemo(() => {
@@ -430,7 +570,7 @@ Qualquer dúvida, estamos à disposição!`;
 
   const totalRevenue = useMemo(() => {
     return deliveredTodayOrders.reduce((acc, order) => {
-      return acc + Number(order.totalAmount);
+      return acc + getOrderTotal(order);
     }, 0);
   }, [deliveredTodayOrders]);
 
@@ -463,13 +603,13 @@ Qualquer dúvida, estamos à disposição!`;
       const deliveredFromDay = orders.filter((order) => {
         const orderDate = new Date(order.createdAt);
         return (
-          (order.status === "ENTREGUE" || order.status === "ENTREGA") &&
+          order.status === "ENTREGUE" &&
           orderDate.toDateString() === day.toDateString()
         );
       });
 
       const total = deliveredFromDay.reduce((acc, order) => {
-        return acc + Number(order.totalAmount);
+        return acc + getOrderTotal(order);
       }, 0);
 
       result.push({
@@ -491,8 +631,16 @@ Qualquer dúvida, estamos à disposição!`;
     [filteredActiveOrders]
   );
 
+  const atrasoOrders = useMemo(
+    () => filteredActiveOrders.filter((order) => isDelayedOrder(order)),
+    [filteredActiveOrders]
+  );
+
   const preparoOrders = useMemo(
-    () => filteredActiveOrders.filter((order) => order.status === "EM_PREPARO"),
+    () =>
+      filteredActiveOrders.filter(
+        (order) => order.status === "EM_PREPARO" && !isDelayedOrder(order)
+      ),
     [filteredActiveOrders]
   );
 
@@ -502,10 +650,7 @@ Qualquer dúvida, estamos à disposição!`;
   );
 
   const entregueOrders = useMemo(
-    () =>
-      filteredActiveOrders.filter(
-        (order) => order.status === "ENTREGUE" || order.status === "ENTREGA"
-      ),
+    () => filteredActiveOrders.filter((order) => order.status === "ENTREGUE"),
     [filteredActiveOrders]
   );
 
@@ -523,7 +668,7 @@ Qualquer dúvida, estamos à disposição!`;
         <ul className="space-y-1 text-sm text-gray-600">
           {order.items.map((item) => (
             <li key={item.id}>
-              {item.quantity}x {item.nome} - R$ {(Number(item.price) * Number(item.quantity)).toFixed(2)}
+              {item.quantity}x {item.name} - R$ {(toMoney(item.price) * Number(item.quantity)).toFixed(2)}
             </li>
           ))}
         </ul>
@@ -531,15 +676,28 @@ Qualquer dúvida, estamos à disposição!`;
     );
   }
 
+  function getDelayText(order: Order) {
+    if (!isDelayedOrder(order)) return null;
+
+    const baseDate = new Date(order.updatedAt || order.createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - baseDate.getTime();
+    const diffMinutes = Math.floor(diffMs / (1000 * 60));
+
+    return `${diffMinutes} min em preparo`;
+  }
+
   function renderOrderCard(order: Order, archivedView = false) {
+    const delayText = getDelayText(order);
+
     return (
       <div key={order.id} className="rounded-xl border bg-white p-4 shadow-sm">
         <p className="mb-1">
-          <strong>Pedido:</strong> {order.orderNumber}
+          <strong>Pedido:</strong> {getOrderCode(order)}
         </p>
 
         <p className="mb-1">
-          <strong>Cliente:</strong> {order.customer?.nome || "Não encontrado"}
+          <strong>Cliente:</strong> {order.customer?.name || "Não encontrado"}
         </p>
 
         <p className="mb-1">
@@ -553,20 +711,32 @@ Qualquer dúvida, estamos à disposição!`;
         {renderItems(order)}
 
         <p className="mb-1">
-          <strong>Total:</strong> R$ {Number(order.totalAmount).toFixed(2)}
+          <strong>Total:</strong> R$ {getOrderTotal(order).toFixed(2)}
         </p>
 
         <p className="mb-1">
           <strong>Pagamento:</strong> {order.paymentMethod}
         </p>
 
+        {order.changeFor && (
+          <p className="mb-1">
+            <strong>Troco para:</strong> R$ {order.changeFor}
+          </p>
+        )}
+
         <p className="mb-1">
-          <strong>Status:</strong> {order.status === "ENTREGA" ? "ENTREGUE" : order.status}
+          <strong>Status:</strong> {order.status}
         </p>
 
-        {order.observacao && (
+        {delayText && (
+          <p className="mb-1 font-semibold text-red-600">
+            <strong>Atraso:</strong> {delayText}
+          </p>
+        )}
+
+        {order.observation && (
           <p className="mb-1">
-            <strong>Obs:</strong> {order.observacao}
+            <strong>Obs:</strong> {order.observation}
           </p>
         )}
 
@@ -834,12 +1004,13 @@ Qualquer dúvida, estamos à disposição!`;
 
       <div className="mb-8">
         <h2 className="mb-4 text-2xl font-bold">Pedidos Ativos</h2>
-        <div className="grid gap-4 xl:grid-cols-5">
+        <div className="grid gap-4 xl:grid-cols-6">
           {renderColumn("Novos", novoOrders, "bg-gray-700")}
           {renderColumn("Em preparo", preparoOrders, "bg-yellow-600")}
+          {renderColumn("Atraso", atrasoOrders, "bg-red-700")}
           {renderColumn("Saiu para entrega", entregaOrders, "bg-blue-600")}
           {renderColumn("Entregues", entregueOrders, "bg-green-600")}
-          {renderColumn("Cancelados", canceladoOrders, "bg-red-600")}
+          {renderColumn("Cancelados", canceladoOrders, "bg-red-500")}
         </div>
       </div>
 

@@ -1,32 +1,31 @@
-import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export async function POST(req: NextRequest) {
+export async function POST() {
   try {
-    const body = await req.json();
-    const orderId = String(body.orderId || "").trim();
-
-    if (!orderId) {
-      return NextResponse.json(
-        { error: "ID do pedido é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    const order = await db.order.update({
+    await prisma.order.updateMany({
       where: {
-        id: orderId,
+        archived: false,
+        OR: [
+          { status: "ENTREGUE" },
+          { status: "CANCELADO" },
+        ],
       },
       data: {
         archived: true,
+        archivedAt: new Date(),
       },
     });
 
-    return NextResponse.json(order);
-  } catch (error) {
-    console.error("Erro ao arquivar pedido:", error);
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("ERRO AO ARQUIVAR PEDIDOS:", error);
+
     return NextResponse.json(
-      { error: "Erro ao arquivar pedido" },
+      {
+        error: "Erro ao arquivar pedidos",
+        details: error?.message || "Erro desconhecido",
+      },
       { status: 500 }
     );
   }

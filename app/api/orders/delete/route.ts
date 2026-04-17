@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId } = await req.json();
+    const body = await req.json();
+    const orderId = body?.orderId ? String(body.orderId) : "";
 
     if (!orderId) {
       return NextResponse.json(
@@ -12,24 +13,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await db.orderItem.deleteMany({
-      where: {
-        orderId,
-      },
+    await prisma.orderItem.deleteMany({
+      where: { orderId },
     });
 
-    await db.order.delete({
-      where: {
-        id: orderId,
-      },
+    await prisma.order.delete({
+      where: { id: orderId },
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Erro ao excluir pedido:", error);
+  } catch (error: any) {
+    console.error("ERRO AO EXCLUIR PEDIDO:", error);
 
     return NextResponse.json(
-      { error: "Erro ao excluir pedido" },
+      {
+        error: "Erro ao excluir pedido",
+        details: error?.message || "Erro desconhecido",
+      },
       { status: 500 }
     );
   }

@@ -17,7 +17,7 @@ type RouteContext = {
   }>;
 };
 
-type ProductAdditionalInput = {
+type ComboAdditionalInput = {
   additionalId: string;
   required?: boolean;
   sortOrder?: number;
@@ -41,31 +41,15 @@ export async function PUT(req: NextRequest, context: RouteContext) {
         : null;
 
     const active = body?.active === undefined ? true : Boolean(body.active);
-    const inStock = body?.inStock === undefined ? true : Boolean(body.inStock);
-    const required =
-      body?.required === undefined ? true : Boolean(body.required);
-
     const sortOrder =
       body?.sortOrder === undefined || body?.sortOrder === null
         ? 0
         : Number(body.sortOrder);
 
-    const categoryIdsRaw: unknown[] = Array.isArray(body?.categoryIds)
-      ? body.categoryIds
-      : [];
-
-    const categoryIds: string[] = [
-      ...new Set(
-        categoryIdsRaw
-          .map((item) => String(item ?? "").trim())
-          .filter((item) => item.length > 0)
-      ),
-    ];
-
-    const productAdditionalConfigs: ProductAdditionalInput[] = Array.isArray(
-      body?.productAdditionalConfigs
+    const comboAdditionalConfigs: ComboAdditionalInput[] = Array.isArray(
+      body?.comboAdditionalConfigs
     )
-      ? body.productAdditionalConfigs
+      ? body.comboAdditionalConfigs
       : [];
 
     if (!id) {
@@ -74,14 +58,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
 
     if (!name) {
       return NextResponse.json(
-        { error: "Nome do produto é obrigatório" },
-        { status: 400 }
-      );
-    }
-
-    if (!categoryIds.length) {
-      return NextResponse.json(
-        { error: "Selecione pelo menos uma categoria" },
+        { error: "Nome do combo é obrigatório" },
         { status: 400 }
       );
     }
@@ -100,41 +77,23 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       );
     }
 
-    const existing = await prisma.product.findUnique({
+    const existing = await prisma.combo.findUnique({
       where: { id },
     });
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Produto não encontrado" },
-        { status: 404 }
-      );
-    }
-
-    const categoriesFound = await prisma.category.findMany({
-      where: {
-        id: {
-          in: categoryIds,
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    if (categoriesFound.length !== categoryIds.length) {
-      return NextResponse.json(
-        { error: "Uma ou mais categorias não foram encontradas" },
+        { error: "Combo não encontrado" },
         { status: 404 }
       );
     }
 
     let slug = makeSlug(name);
     if (!slug) {
-      slug = `produto-${Date.now()}`;
+      slug = `combo-${Date.now()}`;
     }
 
-    const duplicate = await prisma.product.findFirst({
+    const duplicate = await prisma.combo.findFirst({
       where: {
         id: { not: id },
         slug,
@@ -145,7 +104,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const validConfigs = productAdditionalConfigs
+    const validAdditionalConfigs = comboAdditionalConfigs
       .filter((item) => item?.additionalId)
       .map((item, index) => ({
         additionalId: String(item.additionalId).trim(),
@@ -156,7 +115,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
             : index,
       }));
 
-    const updated = await prisma.product.update({
+    const updated = await prisma.combo.update({
       where: { id },
       data: {
         name,
@@ -165,32 +124,29 @@ export async function PUT(req: NextRequest, context: RouteContext) {
         price,
         imageUrl: imageUrl || null,
         active,
-        inStock,
-        required,
         sortOrder,
-        categoryId: categoryIds[0],
-        categories: {
+        comboAdditionalConfigs: {
           deleteMany: {},
-          create: categoryIds.map((categoryId: string, index: number) => ({
-            categoryId,
-            sortOrder: index,
-          })),
-        },
-        productAdditionalConfigs: {
-          deleteMany: {},
-          create: validConfigs,
+          create: validAdditionalConfigs,
         },
       },
       include: {
-        categories: {
+        groups: {
           orderBy: {
             sortOrder: "asc",
           },
           include: {
-            category: true,
+            items: {
+              orderBy: {
+                sortOrder: "asc",
+              },
+              include: {
+                product: true,
+              },
+            },
           },
         },
-        productAdditionalConfigs: {
+        comboAdditionalConfigs: {
           orderBy: {
             sortOrder: "asc",
           },
@@ -202,13 +158,13 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     });
 
     return NextResponse.json(updated, { status: 200 });
-  } catch (error: any) {
-    console.error("ERRO PUT PRODUCT:", error);
+  } catch (error) {
+    console.error("ERRO AO EDITAR COMBO:", error);
 
     return NextResponse.json(
       {
-        error: "Erro ao editar produto",
-        details: error?.message || "Erro desconhecido",
+        error: "Erro ao editar combo",
+        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );
@@ -223,29 +179,29 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
     }
 
-    const existing = await prisma.product.findUnique({
+    const existing = await prisma.combo.findUnique({
       where: { id },
     });
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Produto não encontrado" },
+        { error: "Combo não encontrado" },
         { status: 404 }
       );
     }
 
-    await prisma.product.delete({
+    await prisma.combo.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error: any) {
-    console.error("ERRO DELETE PRODUCT:", error);
+  } catch (error) {
+    console.error("ERRO AO EXCLUIR COMBO:", error);
 
     return NextResponse.json(
       {
-        error: "Erro ao excluir produto",
-        details: error?.message || "Erro desconhecido",
+        error: "Erro ao excluir combo",
+        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );

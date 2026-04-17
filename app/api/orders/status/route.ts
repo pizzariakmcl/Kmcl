@@ -1,37 +1,64 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
+import { OrderStatus } from "@prisma/client";
+
+const allowedStatuses: OrderStatus[] = [
+  "NOVO",
+  "EM_PREPARO",
+  "SAIU_PARA_ENTREGA",
+  "ENTREGUE",
+  "CANCELADO",
+];
+
+function normalizeStatus(value: unknown): OrderStatus | null {
+  const normalized = String(value ?? "").trim().toUpperCase();
+
+  return allowedStatuses.includes(normalized as OrderStatus)
+    ? (normalized as OrderStatus)
+    : null;
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const orderId = body?.orderId ? String(body.orderId).trim() : "";
+    const status = normalizeStatus(body?.status);
 
-    const orderId = String(body.orderId || "").trim();
-    let status = String(body.status || "").trim();
-
-    if (!orderId || !status) {
+    if (!orderId) {
       return NextResponse.json(
-        { error: "orderId e status são obrigatórios" },
+        { error: "orderId é obrigatório" },
         { status: 400 }
       );
     }
 
-    // Corrige status antigos/incorretos
-    if (status === "ENTREGA") status = "ENTREGUE";
-    if (status === "EM") status = "EM_PREPARO";
+    if (!status) {
+      return NextResponse.json(
+        { error: "Status inválido" },
+        { status: 400 }
+      );
+    }
 
-    const updated = await db.order.update({
+    const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
         status,
-        updatedAt: new Date(),
+        archived: status === "ENTREGUE" || status === "CANCELADO",
+        archivedAt:
+          status === "ENTREGUE" || status === "CANCELADO"
+            ? new Date()
+            : null,
       },
     });
 
-    return NextResponse.json(updated);
-  } catch (error) {
-    console.error("Erro ao atualizar status:", error);
+    return NextResponse.json(updatedOrder);
+  } catch (error: any) {
+    console.error("ERRO AO ATUALIZAR STATUS:", error);
+
     return NextResponse.json(
-      { error: "Erro ao atualizar status" },
+      {
+        error: "Erro ao atualizar status",
+        details: error?.message || "Erro desconhecido",
+      },
       { status: 500 }
     );
   }

@@ -1,27 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { prisma } from "@/lib/prisma";
 
-function makeSlug(name: string) {
-  return name
-    .toLowerCase()
-    .trim()
+function makeSlug(value: string) {
+  return value
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
     .replace(/\s+/g, "-")
-    .replace(/[^\w-]+/g, "");
+    .replace(/[^a-z0-9-]/g, "");
 }
 
-type Context = {
+type RouteContext = {
   params: Promise<{
     id: string;
   }>;
 };
 
-export async function PUT(req: NextRequest, context: Context) {
+export async function PUT(req: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
     const body = await req.json();
-    const name = String(body.name || "").trim();
+
+    const name = String(body?.name ?? "").trim();
+    const description =
+      body?.description !== undefined && body?.description !== null
+        ? String(body.description).trim()
+        : null;
+
+    const type =
+      body?.type === "PIZZA_HALF_HALF" ? "PIZZA_HALF_HALF" : "NORMAL";
+
+    const selectionRequired =
+      body?.selectionRequired === undefined
+        ? false
+        : Boolean(body.selectionRequired);
+
+    const active = body?.active === undefined ? true : Boolean(body.active);
+
+    const sortOrder =
+      body?.sortOrder === undefined || body?.sortOrder === null
+        ? 0
+        : Number(body.sortOrder);
+
+    if (!id) {
+      return NextResponse.json(
+        { error: "ID inválido" },
+        { status: 400 }
+      );
+    }
 
     if (!name) {
       return NextResponse.json(
@@ -30,69 +57,106 @@ export async function PUT(req: NextRequest, context: Context) {
       );
     }
 
-    const slug = makeSlug(name);
-
-    const existing = await db.category.findFirst({
-      where: {
-        NOT: { id },
-        OR: [{ name }, { slug }],
-      },
-    });
-
-    if (existing) {
+    if (Number.isNaN(sortOrder)) {
       return NextResponse.json(
-        { error: "Já existe outra categoria com esse nome" },
+        { error: "Ordem inválida" },
         { status: 400 }
       );
     }
 
-    const updated = await db.category.update({
+    const existing = await prisma.category.findUnique({
       where: { id },
-      data: {
-        name,
+    });
+
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Categoria não encontrada" },
+        { status: 404 }
+      );
+    }
+
+    let slug = makeSlug(name);
+
+    if (!slug) {
+      slug = `categoria-${Date.now()}`;
+    }
+
+    const duplicate = await prisma.category.findFirst({
+      where: {
+        id: { not: id },
         slug,
       },
     });
 
-    return NextResponse.json(updated);
+    if (duplicate) {
+      slug = `${slug}-${Date.now()}`;
+    }
+
+    const updated = await prisma.category.update({
+      where: { id },
+      data: {
+        name,
+        slug,
+        description,
+        type,
+        selectionRequired,
+        active,
+        sortOrder,
+      },
+    });
+
+    return NextResponse.json(updated, { status: 200 });
   } catch (error) {
-    console.error("Erro ao atualizar categoria:", error);
+    console.error("ERRO AO EDITAR CATEGORIA:", error);
+
     return NextResponse.json(
-      { error: "Erro ao atualizar categoria" },
+      {
+        error: "Erro ao editar categoria",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(_req: NextRequest, context: Context) {
+export async function DELETE(_req: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
 
-    const productsCount = await db.product.count({
-      where: {
-        categoryId: id,
-      },
-    });
-
-    if (productsCount > 0) {
+    if (!id) {
       return NextResponse.json(
-        {
-          error:
-            "Essa categoria possui produtos. Exclua os produtos antes de excluir a categoria.",
-        },
+        { error: "ID inválido" },
         { status: 400 }
       );
     }
 
-    await db.category.delete({
+    const existing = await prisma.category.findUnique({
       where: { id },
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Erro ao excluir categoria:", error);
+    if (!existing) {
+      return NextResponse.json(
+        { error: "Categoria não encontrada" },
+        { status: 404 }
+      );
+    }
+
+    await prisma.category.delete({
+      where: { id },
+    });
+
     return NextResponse.json(
-      { error: "Erro ao excluir categoria" },
+      { success: true },
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("ERRO AO EXCLUIR CATEGORIA:", error);
+
+    return NextResponse.json(
+      {
+        error: "Erro ao excluir categoria",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }

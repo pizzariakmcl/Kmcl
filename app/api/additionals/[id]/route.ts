@@ -11,16 +11,32 @@ function makeSlug(value: string) {
     .replace(/[^a-z0-9-]/g, "");
 }
 
+function normalizeAdditional(additional: any) {
+  const categories = (additional.categoryLinks || [])
+    .map((link: any) => link.category)
+    .filter(Boolean);
+
+  return {
+    id: additional.id,
+    name: additional.name,
+    slug: additional.slug,
+    description: additional.description,
+    price: Number(additional.price || 0),
+    required: Boolean(additional.required),
+    active: Boolean(additional.active),
+    sortOrder: Number(additional.sortOrder || 0),
+    categories,
+    categoryLinks: additional.categoryLinks || [],
+    categoryIds: categories.map((category: any) => String(category.id)),
+    category: categories[0] || null,
+    categoryId: categories[0]?.id || "",
+  };
+}
+
 type RouteContext = {
   params: Promise<{
     id: string;
   }>;
-};
-
-type ProductAdditionalInput = {
-  additionalId: string;
-  required?: boolean;
-  sortOrder?: number;
 };
 
 export async function PUT(req: NextRequest, context: RouteContext) {
@@ -29,21 +45,19 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     const body = await req.json();
 
     const name = String(body?.name ?? "").trim();
+
     const description =
       body?.description !== undefined && body?.description !== null
         ? String(body.description).trim()
         : null;
 
     const price = Number(body?.price);
-    const imageUrl =
-      body?.imageUrl !== undefined && body?.imageUrl !== null
-        ? String(body.imageUrl).trim()
-        : null;
 
-    const active = body?.active === undefined ? true : Boolean(body.active);
-    const inStock = body?.inStock === undefined ? true : Boolean(body.inStock);
     const required =
-      body?.required === undefined ? true : Boolean(body.required);
+      body?.required === undefined ? false : Boolean(body.required);
+
+    const active =
+      body?.active === undefined ? true : Boolean(body.active);
 
     const sortOrder =
       body?.sortOrder === undefined || body?.sortOrder === null
@@ -52,6 +66,8 @@ export async function PUT(req: NextRequest, context: RouteContext) {
 
     const categoryIdsRaw: unknown[] = Array.isArray(body?.categoryIds)
       ? body.categoryIds
+      : body?.categoryId
+      ? [body.categoryId]
       : [];
 
     const categoryIds: string[] = [
@@ -62,24 +78,18 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       ),
     ];
 
-    const productAdditionalConfigs: ProductAdditionalInput[] = Array.isArray(
-      body?.productAdditionalConfigs
-    )
-      ? body.productAdditionalConfigs
-      : [];
-
     if (!id) {
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
     }
 
     if (!name) {
       return NextResponse.json(
-        { error: "Nome do produto é obrigatório" },
+        { error: "Nome do adicional é obrigatório" },
         { status: 400 }
       );
     }
 
-    if (!categoryIds.length) {
+    if (categoryIds.length === 0) {
       return NextResponse.json(
         { error: "Selecione pelo menos uma categoria" },
         { status: 400 }
@@ -93,25 +103,18 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       );
     }
 
-    if (Number.isNaN(sortOrder)) {
-      return NextResponse.json(
-        { error: "Ordem inválida" },
-        { status: 400 }
-      );
-    }
-
-    const existing = await prisma.product.findUnique({
+    const existing = await prisma.additional.findUnique({
       where: { id },
     });
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Produto não encontrado" },
+        { error: "Adicional não encontrado" },
         { status: 404 }
       );
     }
 
-    const categoriesFound = await prisma.category.findMany({
+    const categories = await prisma.category.findMany({
       where: {
         id: {
           in: categoryIds,
@@ -122,7 +125,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       },
     });
 
-    if (categoriesFound.length !== categoryIds.length) {
+    if (categories.length !== categoryIds.length) {
       return NextResponse.json(
         { error: "Uma ou mais categorias não foram encontradas" },
         { status: 404 }
@@ -130,11 +133,9 @@ export async function PUT(req: NextRequest, context: RouteContext) {
     }
 
     let slug = makeSlug(name);
-    if (!slug) {
-      slug = `produto-${Date.now()}`;
-    }
+    if (!slug) slug = `additional-${Date.now()}`;
 
-    const duplicate = await prisma.product.findFirst({
+    const duplicate = await prisma.additional.findFirst({
       where: {
         id: { not: id },
         slug,
@@ -145,44 +146,26 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       slug = `${slug}-${Date.now()}`;
     }
 
-    const validConfigs = productAdditionalConfigs
-      .filter((item) => item?.additionalId)
-      .map((item, index) => ({
-        additionalId: String(item.additionalId).trim(),
-        required: Boolean(item.required),
-        sortOrder:
-          item.sortOrder !== undefined && !Number.isNaN(Number(item.sortOrder))
-            ? Number(item.sortOrder)
-            : index,
-      }));
-
-    const updated = await prisma.product.update({
+    const updated = await prisma.additional.update({
       where: { id },
       data: {
         name,
         slug,
         description,
         price,
-        imageUrl: imageUrl || null,
-        active,
-        inStock,
         required,
-        sortOrder,
-        categoryId: categoryIds[0],
-        categories: {
+        active,
+        sortOrder: Number.isNaN(sortOrder) ? 0 : sortOrder,
+        categoryLinks: {
           deleteMany: {},
-          create: categoryIds.map((categoryId: string, index: number) => ({
+          create: categoryIds.map((categoryId, index) => ({
             categoryId,
             sortOrder: index,
           })),
         },
-        productAdditionalConfigs: {
-          deleteMany: {},
-          create: validConfigs,
-        },
       },
       include: {
-        categories: {
+        categoryLinks: {
           orderBy: {
             sortOrder: "asc",
           },
@@ -190,24 +173,16 @@ export async function PUT(req: NextRequest, context: RouteContext) {
             category: true,
           },
         },
-        productAdditionalConfigs: {
-          orderBy: {
-            sortOrder: "asc",
-          },
-          include: {
-            additional: true,
-          },
-        },
       },
     });
 
-    return NextResponse.json(updated, { status: 200 });
+    return NextResponse.json(normalizeAdditional(updated), { status: 200 });
   } catch (error: any) {
-    console.error("ERRO PUT PRODUCT:", error);
+    console.error("ERRO PUT ADDITIONAL:", error);
 
     return NextResponse.json(
       {
-        error: "Erro ao editar produto",
+        error: "Erro ao editar adicional",
         details: error?.message || "Erro desconhecido",
       },
       { status: 500 }
@@ -223,28 +198,28 @@ export async function DELETE(_req: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
     }
 
-    const existing = await prisma.product.findUnique({
+    const existing = await prisma.additional.findUnique({
       where: { id },
     });
 
     if (!existing) {
       return NextResponse.json(
-        { error: "Produto não encontrado" },
+        { error: "Adicional não encontrado" },
         { status: 404 }
       );
     }
 
-    await prisma.product.delete({
+    await prisma.additional.delete({
       where: { id },
     });
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error: any) {
-    console.error("ERRO DELETE PRODUCT:", error);
+    console.error("ERRO DELETE ADDITIONAL:", error);
 
     return NextResponse.json(
       {
-        error: "Erro ao excluir produto",
+        error: "Erro ao excluir adicional",
         details: error?.message || "Erro desconhecido",
       },
       { status: 500 }

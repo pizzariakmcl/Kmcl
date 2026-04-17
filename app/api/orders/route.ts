@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { PaymentMethod, OrderStatus } from "@prisma/client";
 import { z } from "zod";
 
 const orderSchema = z.object({
@@ -12,6 +13,7 @@ const orderSchema = z.object({
     city: z.string().min(1),
     cep: z.string().optional().nullable(),
     complement: z.string().optional().nullable(),
+    email: z.string().optional().nullable(),
   }),
   paymentMethod: z.string().min(1),
   observacao: z.string().optional().nullable(),
@@ -19,24 +21,42 @@ const orderSchema = z.object({
   items: z
     .array(
       z.object({
-        productId: z.string().min(1),
+        productId: z.string().optional().nullable(),
         name: z.string().min(1),
-        price: z.number().positive(),
+        price: z.number(),
         quantity: z.number().int().positive(),
       })
     )
     .min(1),
 });
 
-function generateOrderNumber() {
+function generateOrderCode() {
   const now = new Date();
-  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(
-    now.getDate()
-  ).padStart(2, "0")}${String(now.getHours()).padStart(2, "0")}${String(
-    now.getMinutes()
-  ).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+  const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}${String(now.getDate()).padStart(2, "0")}${String(
+    now.getHours()
+  ).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(
+    now.getSeconds()
+  ).padStart(2, "0")}`;
 
   return `KMCL-${stamp}`;
+}
+
+function normalizePaymentMethod(value: string): PaymentMethod {
+  const paymentMethodRaw = String(value || "PIX").trim().toUpperCase();
+
+  const allowedPaymentMethods: PaymentMethod[] = [
+    "PIX",
+    "DINHEIRO",
+    "DEBITO",
+    "CREDITO",
+  ];
+
+  return allowedPaymentMethods.includes(paymentMethodRaw as PaymentMethod)
+    ? (paymentMethodRaw as PaymentMethod)
+    : "PIX";
 }
 
 export async function POST(req: NextRequest) {
@@ -51,48 +71,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { customer, paymentMethod, observacao, totalAmount, items } = parsed.data;
+    const { customer, observacao, totalAmount, items } = parsed.data;
 
-    await db.customer.create({
+    const paymentMethod = normalizePaymentMethod(parsed.data.paymentMethod);
+
+    const createdCustomer = await db.customer.create({
       data: {
         name: customer.name,
         whatsapp: customer.whatsapp,
+        email: customer.email || null,
+        cep: customer.cep || null,
+        address: customer.address,
+        number: customer.number,
+        complement: customer.complement || null,
+        neighborhood: customer.neighborhood,
+        city: customer.city,
       },
     });
 
     const order = await db.order.create({
       data: {
-        orderNumber: generateOrderNumber(),
-        customerName: customer.name,
-        whatsapp: customer.whatsapp,
-        cep: customer.cep || null,
-        address: customer.address,
-        number: customer.number,
-        neighborhood: customer.neighborhood,
-        city: customer.city,
-        complement: customer.complement || null,
+        code: generateOrderCode(),
+        customerId: createdCustomer.id,
         paymentMethod,
-        note: observacao || null,
-        status: "NOVO",
+        observation: observacao || null,
+        status: "NOVO" as OrderStatus,
         archived: false,
         total: totalAmount,
         items: {
           create: items.map((item) => ({
-            productId: item.productId,
+            productId: item.productId || null,
             name: item.name,
-            price: item.price,
-            quantity: item.quantity,
+            price: Number(item.price || 0),
+            quantity: Number(item.quantity || 1),
           })),
         },
       },
       include: {
         items: true,
+        customer: true,
       },
     });
 
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
     console.error("Erro ao criar pedido:", error);
+
     return NextResponse.json(
       { error: "Erro interno ao criar pedido" },
       { status: 500 }
