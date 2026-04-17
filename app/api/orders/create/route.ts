@@ -151,6 +151,8 @@ export async function POST(req: NextRequest) {
       return normalized;
     });
 
+    console.log("NORMALIZED ITEMS FINAL:", JSON.stringify(normalizedItems, null, 2));
+
     const createdCustomer = await prisma.customer.create({
       data: {
         name: customerName,
@@ -174,12 +176,19 @@ export async function POST(req: NextRequest) {
         total: totalAmount,
         status: "NOVO" as OrderStatus,
         items: {
-          create: normalizedItems.map((item) => ({
-            productId: item.productId,
-            name: item.name,
-            price: item.price,
-            quantity: item.quantity,
-          })),
+          create: normalizedItems.map((item) => {
+            const itemData: any = {
+              name: item.name,
+              price: item.price,
+              quantity: item.quantity,
+            };
+
+            if (item.productId) {
+              itemData.productId = item.productId;
+            }
+
+            return itemData;
+          }),
         },
       },
       include: {
@@ -190,15 +199,14 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(order, { status: 201 });
   } catch (error: any) {
-    console.error("ERRO CREATE ORDER:", error);
+    console.error("ERRO CREATE ORDER COMPLETO:", error);
+    console.error("MENSAGEM:", error?.message);
+    console.error("STACK:", error?.stack);
 
     return NextResponse.json(
       {
         error: "Erro ao criar pedido",
-        details:
-          process.env.NODE_ENV === "development"
-            ? String(error?.message || "Erro desconhecido")
-            : undefined,
+        details: String(error?.message || "Erro desconhecido"),
       },
       { status: 500 }
     );
