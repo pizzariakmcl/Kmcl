@@ -6,46 +6,10 @@ function generateOrderCode() {
   return `PED-${Date.now()}`;
 }
 
-function normalizePaymentMethod(value: string): PaymentMethod {
-  const raw = String(value || "PIX")
-    .trim()
-    .toUpperCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  const allowedPaymentMethods: PaymentMethod[] = [
-    "PIX",
-    "DINHEIRO",
-    "DEBITO",
-    "CREDITO",
-  ];
-
-  return allowedPaymentMethods.includes(raw as PaymentMethod)
-    ? (raw as PaymentMethod)
-    : "PIX";
-}
-
-function buildSafeItemName(item: any) {
-  if (item?.name && String(item.name).trim()) {
-    return String(item.name).trim();
-  }
-
-  if (item?.isHalfHalf && Array.isArray(item?.flavorNames) && item.flavorNames.length) {
-    return `Meio a Meio: ${item.flavorNames.join(" + ")}`;
-  }
-
-  if (item?.isCombo && Array.isArray(item?.comboSelectionsSummary) && item.comboSelectionsSummary.length) {
-    return `Combo: ${item.comboSelectionsSummary.join(" | ")}`;
-  }
-
-  return "Produto";
-}
-
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-
-    console.log("BODY RECEBIDO:", JSON.stringify(body, null, 2));
+    console.log("BODY RECEBIDO:", body);
 
     const customer = body?.customer || {};
     const items = Array.isArray(body?.items) ? body.items : [];
@@ -93,7 +57,23 @@ export async function POST(req: NextRequest) {
         : null;
 
     const totalAmount = Number(body?.totalAmount || 0);
-    const paymentMethod = normalizePaymentMethod(body?.paymentMethod || "PIX");
+
+    const paymentMethodRaw = String(body?.paymentMethod || "PIX")
+      .trim()
+      .toUpperCase();
+
+    const allowedPaymentMethods: PaymentMethod[] = [
+      "PIX",
+      "DINHEIRO",
+      "DEBITO",
+      "CREDITO",
+    ];
+
+    const paymentMethod: PaymentMethod = allowedPaymentMethods.includes(
+      paymentMethodRaw as PaymentMethod
+    )
+      ? (paymentMethodRaw as PaymentMethod)
+      : "PIX";
 
     if (!customerName) {
       return NextResponse.json(
@@ -115,43 +95,6 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    if (!totalAmount || totalAmount <= 0) {
-      return NextResponse.json(
-        { error: "Total do pedido inválido" },
-        { status: 400 }
-      );
-    }
-
-    const normalizedItems = items.map((item: any, index: number) => {
-      const isHalfHalf = !!item?.isHalfHalf;
-      const isCombo = !!item?.isCombo;
-
-      const safeName = buildSafeItemName(item);
-      const safePrice = Number(item?.price || 0);
-      const safeQuantity = Number(item?.quantity || 1);
-
-      const safeProductId =
-        !isHalfHalf &&
-        !isCombo &&
-        item?.productId &&
-        String(item.productId).trim() !== ""
-          ? String(item.productId).trim()
-          : null;
-
-      const normalized = {
-        productId: safeProductId,
-        name: safeName,
-        price: Number.isFinite(safePrice) ? safePrice : 0,
-        quantity: Number.isFinite(safeQuantity) && safeQuantity > 0 ? safeQuantity : 1,
-      };
-
-      console.log(`ITEM NORMALIZADO ${index}:`, normalized);
-
-      return normalized;
-    });
-
-    console.log("NORMALIZED ITEMS FINAL:", JSON.stringify(normalizedItems, null, 2));
 
     const createdCustomer = await prisma.customer.create({
       data: {
@@ -176,18 +119,23 @@ export async function POST(req: NextRequest) {
         total: totalAmount,
         status: "NOVO" as OrderStatus,
         items: {
-          create: normalizedItems.map((item) => {
-            const itemData: any = {
-              name: item.name,
-              price: item.price,
-              quantity: item.quantity,
+          create: items.map((item: any) => {
+            const rawProductId =
+              item?.productId && String(item.productId).trim() !== ""
+                ? String(item.productId).trim()
+                : null;
+
+            const isSyntheticProduct =
+              !rawProductId ||
+              rawProductId.startsWith("half-half-") ||
+              rawProductId.startsWith("combo-");
+
+            return {
+              productId: isSyntheticProduct ? null : rawProductId,
+              name: String(item.name || "Produto"),
+              price: Number(item.price || 0),
+              quantity: Number(item.quantity || 1),
             };
-
-            if (item.productId) {
-              itemData.productId = item.productId;
-            }
-
-            return itemData;
           }),
         },
       },
@@ -199,14 +147,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(order, { status: 201 });
   } catch (error: any) {
-    console.error("ERRO CREATE ORDER COMPLETO:", error);
-    console.error("MENSAGEM:", error?.message);
-    console.error("STACK:", error?.stack);
+    console.error("ERRO CREATE ORDER:", error);
 
     return NextResponse.json(
       {
         error: "Erro ao criar pedido",
-        details: String(error?.message || "Erro desconhecido"),
+        details:
+          process.env.NODE_ENV === "development"
+            ? String(error?.message || "Erro desconhecido")
+            : undefined,
       },
       { status: 500 }
     );
