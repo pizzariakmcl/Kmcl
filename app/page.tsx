@@ -848,7 +848,7 @@ export default function HomePage() {
     
     <div className="flex items-center gap-3">
       <Image
-        src="/logo.JPG"
+        src="/logo.jpg"
         alt="Logo Pizzaria KMCL"
         width={44}
         height={44}
