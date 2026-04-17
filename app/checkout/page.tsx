@@ -205,7 +205,7 @@ export default function CheckoutPage() {
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
           <section className="space-y-6">
             <div className="rounded-3xl border border-red-100 bg-white p-6 shadow-sm">
-              <h2 className="text-xl font-bold text-gray-900">Dados do cliente</h2>
+              <h2 className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400>
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <input
@@ -213,7 +213,7 @@ export default function CheckoutPage() {
                   placeholder="Seu nome"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
 
                 <input
@@ -221,7 +221,7 @@ export default function CheckoutPage() {
                   placeholder="WhatsApp"
                   value={customerWhatsapp}
                   onChange={(e) => setCustomerWhatsapp(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
 
                 <input
@@ -229,7 +229,7 @@ export default function CheckoutPage() {
                   placeholder="CEP"
                   value={customerCep}
                   onChange={(e) => setCustomerCep(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
 
                 <input
@@ -237,7 +237,7 @@ export default function CheckoutPage() {
                   placeholder="Endereço"
                   value={customerAddress}
                   onChange={(e) => setCustomerAddress(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
 
                 <input
@@ -245,7 +245,7 @@ export default function CheckoutPage() {
                   placeholder="Número"
                   value={customerNumber}
                   onChange={(e) => setCustomerNumber(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
 
                 <input
@@ -253,7 +253,7 @@ export default function CheckoutPage() {
                   placeholder="Complemento"
                   value={customerComplement}
                   onChange={(e) => setCustomerComplement(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
 
                 <input
@@ -261,7 +261,7 @@ export default function CheckoutPage() {
                   placeholder="Bairro"
                   value={customerNeighborhood}
                   onChange={(e) => setCustomerNeighborhood(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
 
                 <input
@@ -269,7 +269,7 @@ export default function CheckoutPage() {
                   placeholder="Cidade"
                   value={customerCity}
                   onChange={(e) => setCustomerCity(e.target.value)}
-                  className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
               </div>
 
@@ -277,7 +277,7 @@ export default function CheckoutPage() {
                 <select
                   value={paymentMethod}
                   onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 >
                   <option value="PIX">Pix</option>
                   <option value="DINHEIRO">Dinheiro</option>
@@ -293,7 +293,7 @@ export default function CheckoutPage() {
                     placeholder="Troco para quanto?"
                     value={changeFor}
                     onChange={(e) => setChangeFor(e.target.value)}
-                    className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                    className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                   />
                 </div>
               )}
@@ -304,7 +304,7 @@ export default function CheckoutPage() {
                   value={observation}
                   onChange={(e) => setObservation(e.target.value)}
                   rows={4}
-                  className="w-full rounded-xl border border-gray-200 px-4 py-3 outline-none"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
                 />
               </div>
 

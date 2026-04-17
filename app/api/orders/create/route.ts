@@ -9,6 +9,7 @@ function generateOrderCode() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("BODY RECEBIDO:", body);
 
     const customer = body?.customer || {};
     const items = Array.isArray(body?.items) ? body.items : [];
@@ -20,6 +21,36 @@ export async function POST(req: NextRequest) {
         ? String(customer.email).trim()
         : null;
 
+    const customerCep =
+      customer?.cep && String(customer.cep).trim() !== ""
+        ? String(customer.cep).trim()
+        : null;
+
+    const customerAddress =
+      customer?.address && String(customer.address).trim() !== ""
+        ? String(customer.address).trim()
+        : null;
+
+    const customerNumber =
+      customer?.number && String(customer.number).trim() !== ""
+        ? String(customer.number).trim()
+        : null;
+
+    const customerNeighborhood =
+      customer?.neighborhood && String(customer.neighborhood).trim() !== ""
+        ? String(customer.neighborhood).trim()
+        : null;
+
+    const customerCity =
+      customer?.city && String(customer.city).trim() !== ""
+        ? String(customer.city).trim()
+        : null;
+
+    const customerComplement =
+      customer?.complement && String(customer.complement).trim() !== ""
+        ? String(customer.complement).trim()
+        : null;
+
     const observation =
       body?.observation && String(body.observation).trim() !== ""
         ? String(body.observation).trim()
@@ -27,7 +58,6 @@ export async function POST(req: NextRequest) {
 
     const totalAmount = Number(body?.totalAmount || 0);
 
-    // 🔥 CORREÇÃO DO PAYMENT METHOD
     const paymentMethodRaw = String(body?.paymentMethod || "PIX")
       .trim()
       .toUpperCase();
@@ -66,16 +96,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // cria cliente
     const createdCustomer = await prisma.customer.create({
       data: {
         name: customerName,
         whatsapp: customerWhatsapp,
         email: customerEmail,
+        cep: customerCep,
+        address: customerAddress,
+        number: customerNumber,
+        complement: customerComplement,
+        neighborhood: customerNeighborhood,
+        city: customerCity,
       },
     });
 
-    // cria pedido
     const order = await prisma.order.create({
       data: {
         code: generateOrderCode(),
@@ -84,7 +118,6 @@ export async function POST(req: NextRequest) {
         observation,
         total: totalAmount,
         status: "NOVO" as OrderStatus,
-
         items: {
           create: items.map((item: any) => ({
             productId: item.productId || null,
