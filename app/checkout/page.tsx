@@ -140,24 +140,40 @@ export default function CheckoutPage() {
     try {
       setIsSubmitting(true);
 
-      const normalizedItems = cart.map((item) => ({
-        productId: item.productId || null,
-        comboId: item.comboId || null,
-        name: buildItemDisplayName(item),
-        price: Number(item.price || 0),
-        quantity: Number(item.quantity || 1),
-        isHalfHalf: !!item.isHalfHalf,
-        isCombo: !!item.isCombo,
-        flavorIds: Array.isArray(item.flavorIds) ? item.flavorIds : [],
-        flavorNames: Array.isArray(item.flavorNames) ? item.flavorNames : [],
-        comboSelectionsSummary: Array.isArray(item.comboSelectionsSummary)
-          ? item.comboSelectionsSummary
-          : [],
-        additionalIds: Array.isArray(item.additionalIds) ? item.additionalIds : [],
-        additionalNames: Array.isArray(item.additionalNames)
-          ? item.additionalNames
-          : [],
-      }));
+      const normalizedItems = cart.map((item) => {
+        const rawProductId =
+          item.productId && String(item.productId).trim() !== ""
+            ? String(item.productId).trim()
+            : null;
+
+        const isInvalidProduct =
+          item.isHalfHalf ||
+          item.isCombo ||
+          !rawProductId ||
+          rawProductId.startsWith("half-half-") ||
+          rawProductId.startsWith("combo-");
+
+        return {
+          productId: isInvalidProduct ? null : rawProductId,
+          comboId: item.comboId || null,
+          name: buildItemDisplayName(item),
+          price: Number(item.price || 0),
+          quantity: Number(item.quantity || 1),
+          isHalfHalf: !!item.isHalfHalf,
+          isCombo: !!item.isCombo,
+          flavorIds: Array.isArray(item.flavorIds) ? item.flavorIds : [],
+          flavorNames: Array.isArray(item.flavorNames) ? item.flavorNames : [],
+          comboSelectionsSummary: Array.isArray(item.comboSelectionsSummary)
+            ? item.comboSelectionsSummary
+            : [],
+          additionalIds: Array.isArray(item.additionalIds)
+            ? item.additionalIds
+            : [],
+          additionalNames: Array.isArray(item.additionalNames)
+            ? item.additionalNames
+            : [],
+        };
+      });
 
       const payload = {
         customer: {
@@ -312,7 +328,7 @@ export default function CheckoutPage() {
                   onChange={(e) =>
                     setPaymentMethod(e.target.value as PaymentMethod)
                   }
-                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black placeholder-gray-400"
+                  className="w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-black"
                 >
                   <option value="PIX">Pix</option>
                   <option value="DINHEIRO">Dinheiro</option>
@@ -368,7 +384,8 @@ export default function CheckoutPage() {
                     {item.isCombo
                       ? item.name
                       : item.isHalfHalf
-                      ? "Meio a Meio: " + (item.flavorNames?.join(" + ") || item.name)
+                      ? "Meio a Meio: " +
+                        (item.flavorNames?.join(" + ") || item.name)
                       : item.name}
                   </p>
 
