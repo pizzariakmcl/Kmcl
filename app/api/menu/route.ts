@@ -10,23 +10,73 @@ export async function GET() {
       orderBy: {
         sortOrder: "asc",
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        type: true,
+        selectionRequired: true,
+        active: true,
+        sortOrder: true,
+        additionalLinks: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+          select: {
+            sortOrder: true,
+            additional: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                description: true,
+                price: true,
+                required: true,
+                active: true,
+                sortOrder: true,
+              },
+            },
+          },
+        },
         productLinks: {
           orderBy: {
             sortOrder: "asc",
           },
-          include: {
+          select: {
+            sortOrder: true,
             product: {
-              where: {
-                active: true,
-                inStock: true,
-              },
               select: {
                 id: true,
                 name: true,
+                slug: true,
                 description: true,
                 price: true,
                 imageUrl: true,
+                active: true,
+                inStock: true,
+                productAdditionalConfigs: {
+                  orderBy: {
+                    sortOrder: "asc",
+                  },
+                  select: {
+                    additionalId: true,
+                    required: true,
+                    sortOrder: true,
+                    additional: {
+                      select: {
+                        id: true,
+                        name: true,
+                        slug: true,
+                        description: true,
+                        price: true,
+                        required: true,
+                        active: true,
+                        sortOrder: true,
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -35,29 +85,42 @@ export async function GET() {
     });
 
     const formatted = categories.map((category) => {
-      const products =
-        category.productLinks
-          ?.map((link) => link.product)
-          .filter(Boolean) || [];
+      const additionals = (category.additionalLinks || [])
+        .map((link) => link.additional)
+        .filter((additional) => additional && additional.active);
+
+      const products = (category.productLinks || [])
+        .map((link) => link.product)
+        .filter((product) => product && product.active && product.inStock);
 
       return {
         id: category.id,
         name: category.name,
         slug: category.slug,
+        description: category.description,
+        type: category.type,
+        selectionRequired: category.selectionRequired,
+        active: category.active,
+        sortOrder: category.sortOrder,
+        additionals,
         products,
       };
     });
 
     return NextResponse.json(formatted, {
+      status: 200,
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
       },
     });
   } catch (error) {
-    console.error("ERRO MENU:", error);
+    console.error("ERRO AO BUSCAR CARDÁPIO:", error);
 
     return NextResponse.json(
-      { error: "Erro ao carregar menu" },
+      {
+        error: "Erro ao buscar cardápio",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     );
   }
