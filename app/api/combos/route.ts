@@ -20,21 +20,53 @@ type ComboAdditionalInput = {
 export async function GET() {
   try {
     const combos = await prisma.combo.findMany({
+      where: {
+        active: true,
+      },
       orderBy: {
         sortOrder: "asc",
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        description: true,
+        price: true,
+        imageUrl: true,
+        active: true,
+        sortOrder: true,
         groups: {
           orderBy: {
             sortOrder: "asc",
           },
-          include: {
+          select: {
+            id: true,
+            comboId: true,
+            name: true,
+            required: true,
+            minSelect: true,
+            maxSelect: true,
+            sortOrder: true,
             items: {
               orderBy: {
                 sortOrder: "asc",
               },
-              include: {
-                product: true,
+              select: {
+                id: true,
+                productId: true,
+                sortOrder: true,
+                product: {
+                  select: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    description: true,
+                    price: true,
+                    imageUrl: true,
+                    active: true,
+                    inStock: true,
+                  },
+                },
               },
             },
           },
@@ -43,14 +75,33 @@ export async function GET() {
           orderBy: {
             sortOrder: "asc",
           },
-          include: {
-            additional: true,
+          select: {
+            additionalId: true,
+            required: true,
+            sortOrder: true,
+            additional: {
+              select: {
+                id: true,
+                name: true,
+                slug: true,
+                description: true,
+                price: true,
+                required: true,
+                active: true,
+                sortOrder: true,
+              },
+            },
           },
         },
       },
     });
 
-    return NextResponse.json(combos, { status: 200 });
+    return NextResponse.json(combos, {
+      status: 200,
+      headers: {
+        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
+      },
+    });
   } catch (error) {
     console.error("ERRO AO BUSCAR COMBOS:", error);
 

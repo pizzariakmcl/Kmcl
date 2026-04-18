@@ -120,7 +120,7 @@ export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [combos, setCombos] = useState<Combo[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("TODOS");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
   const [selectedFlavors, setSelectedFlavors] = useState<Product[]>([]);
   const [selectedTarget, setSelectedTarget] = useState<SelectedTarget | null>(
     null
@@ -154,20 +154,31 @@ export default function HomePage() {
 
   async function loadData() {
     try {
-      const menuRes = await fetch("/api/menu", {
-        cache: "no-store",
-      });
-      const combosRes = await fetch("/api/combos", { cache: "no-store" });
+      const [menuRes, combosRes] = await Promise.all([
+        fetch("/api/menu"),
+        fetch("/api/combos"),
+      ]);
 
-      const menuData = await menuRes.json().catch(() => []);
-      const combosData = await combosRes.json().catch(() => []);
+      const [menuData, combosData] = await Promise.all([
+        menuRes.json().catch(() => []),
+        combosRes.json().catch(() => []),
+      ]);
 
-      setCategories(Array.isArray(menuData) ? menuData : []);
-      setCombos(
-        Array.isArray(combosData)
-          ? combosData.filter((combo) => combo?.active !== false)
-          : []
+      const safeCategories = Array.isArray(menuData) ? menuData : [];
+      const safeCombos = Array.isArray(combosData)
+        ? combosData.filter((combo) => combo?.active !== false)
+        : [];
+
+      setCategories(safeCategories);
+      setCombos(safeCombos);
+
+      const firstActiveCategory = safeCategories.find(
+        (category) => category.active !== false
       );
+
+      if (firstActiveCategory) {
+        setSelectedCategoryId(firstActiveCategory.id);
+      }
     } catch (error) {
       console.error("Erro ao carregar dados:", error);
       setCategories([]);
@@ -722,10 +733,7 @@ export default function HomePage() {
   }
 
   const selectedCategory = useMemo(() => {
-    if (
-      selectedCategoryId === "TODOS" ||
-      selectedCategoryId === "COMBOS"
-    ) {
+    if (selectedCategoryId === "COMBOS") {
       return null;
     }
 
@@ -733,25 +741,6 @@ export default function HomePage() {
       categories.find((category) => category.id === selectedCategoryId) ?? null
     );
   }, [categories, selectedCategoryId]);
-
-  const allProducts = useMemo(() => {
-    const safeCategories = Array.isArray(categories) ? categories : [];
-    const map = new Map<string, Product>();
-
-    safeCategories.forEach((category) => {
-      const categoryProducts = Array.isArray(category?.products)
-        ? category.products
-        : [];
-
-      categoryProducts.forEach((product) => {
-        if (!map.has(product.id)) {
-          map.set(product.id, product);
-        }
-      });
-    });
-
-    return Array.from(map.values());
-  }, [categories]);
 
   const isHalfHalfCategory = useMemo(() => {
     if (!selectedCategory) return false;
@@ -770,18 +759,7 @@ export default function HomePage() {
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const filteredProducts =
-    selectedCategoryId === "TODOS"
-      ? allProducts.filter((product) => {
-          const matchesSearch =
-            !normalizedSearch ||
-            product.name.toLowerCase().includes(normalizedSearch) ||
-            String(product.description || "")
-              .toLowerCase()
-              .includes(normalizedSearch);
-
-          return product.active && product.inStock && matchesSearch;
-        })
-      : selectedCategoryId === "COMBOS"
+    selectedCategoryId === "COMBOS"
       ? []
       : (selectedCategory?.products || []).filter((product) => {
           const matchesSearch =
@@ -844,32 +822,32 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-white text-black">
       <header className="sticky top-0 z-50 border-b border-red-200 bg-white/95 backdrop-blur">
-  <div className="flex items-center justify-between px-4 py-3">
-    
-    <div className="flex items-center gap-3">
-      <Image
-        src="/logo.jpg"
-        alt="Logo Pizzaria KMCL"
-        width={44}
-        height={44}
-        className="h-11 w-11 rounded-full border border-red-200 object-cover shadow-sm"
-      />
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/logo.jpg"
+              alt="Logo Pizzaria KMCL"
+              width={44}
+              height={44}
+              className="h-11 w-11 rounded-full border border-red-200 object-cover shadow-sm"
+            />
 
-      <div>
-        <h1 className="text-lg font-bold text-black">Pizzaria KMCL NOVA</h1>
-        <p className="text-xs text-gray-600">Cardápio online</p>
-      </div>
-    </div>
+            <div>
+              <h1 className="text-lg font-bold text-black">
+                Pizzaria KMCL NOVA
+              </h1>
+              <p className="text-xs text-gray-600">Cardápio online</p>
+            </div>
+          </div>
 
-    <Link
-      href="/carrinho"
-      className="rounded-xl border border-red-600 bg-red-600 px-4 py-2 font-bold text-white shadow-sm"
-    >
-      🛒 {cartCount}
-    </Link>
-
-  </div>
-</header>
+          <Link
+            href="/carrinho"
+            className="rounded-xl border border-red-600 bg-red-600 px-4 py-2 font-bold text-white shadow-sm"
+          >
+            🛒 {cartCount}
+          </Link>
+        </div>
+      </header>
 
       <div className="px-4 pt-4">
         <div className="rounded-2xl border border-red-200 bg-white p-3 shadow-sm">
@@ -885,17 +863,6 @@ export default function HomePage() {
 
       <div className="overflow-x-auto px-4 py-4">
         <div className="flex gap-2">
-          <button
-            onClick={() => setSelectedCategoryId("TODOS")}
-            className={`rounded-xl border px-4 py-2 font-semibold transition ${
-              selectedCategoryId === "TODOS"
-                ? "border-red-600 bg-red-600 text-white"
-                : "border-red-200 bg-white text-red-600"
-            }`}
-          >
-            Todos
-          </button>
-
           <button
             onClick={() => setSelectedCategoryId("COMBOS")}
             className={`rounded-xl border px-4 py-2 font-semibold transition ${
@@ -1133,100 +1100,100 @@ export default function HomePage() {
       )}
 
       {selectedTarget && (
-  <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-3 md:items-center md:p-4">
-    <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl">
-      <div className="overflow-y-auto overscroll-contain p-5 md:p-6">
-        <h2 className="text-2xl font-bold text-black">
-          {selectedTarget.type === "PRODUCT"
-            ? selectedTarget.product.name
-            : selectedTarget.name}
-        </h2>
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-3 md:items-center md:p-4">
+          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl">
+            <div className="overflow-y-auto overscroll-contain p-5 md:p-6">
+              <h2 className="text-2xl font-bold text-black">
+                {selectedTarget.type === "PRODUCT"
+                  ? selectedTarget.product.name
+                  : selectedTarget.name}
+              </h2>
 
-        <p className="mt-1 text-sm text-gray-600">
-          Escolha os adicionais do seu pedido
-        </p>
+              <p className="mt-1 text-sm text-gray-600">
+                Escolha os adicionais do seu pedido
+              </p>
 
-        <div className="mt-4 space-y-3">
-          {currentAdditionals.length > 0 ? (
-            currentAdditionals.map((additional) => {
-              const checked = isAdditionalSelected(additional.id);
+              <div className="mt-4 space-y-3">
+                {currentAdditionals.length > 0 ? (
+                  currentAdditionals.map((additional) => {
+                    const checked = isAdditionalSelected(additional.id);
 
-              return (
-                <label
-                  key={additional.id}
-                  className="flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-red-200 bg-white p-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-black">
-                      {additional.name}
-                      {additional.required ? " *" : ""}
-                    </p>
+                    return (
+                      <label
+                        key={additional.id}
+                        className="flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-red-200 bg-white p-3"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold text-black">
+                            {additional.name}
+                            {additional.required ? " *" : ""}
+                          </p>
 
-                    {additional.description && (
-                      <p className="text-sm text-gray-500">
-                        {additional.description}
-                      </p>
-                    )}
+                          {additional.description && (
+                            <p className="text-sm text-gray-500">
+                              {additional.description}
+                            </p>
+                          )}
 
-                    <p className="text-sm text-red-600">
-                      + R$ {Number(additional.price).toFixed(2)}
-                    </p>
-                  </div>
+                          <p className="text-sm text-red-600">
+                            + R$ {Number(additional.price).toFixed(2)}
+                          </p>
+                        </div>
 
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => toggleAdditional(additional)}
-                    className="mt-1 h-6 w-6 shrink-0"
-                  />
-                </label>
-              );
-            })
-          ) : (
-            <p className="text-sm text-gray-500">
-              Este item não possui adicionais.
-            </p>
-          )}
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleAdditional(additional)}
+                          className="mt-1 h-6 w-6 shrink-0"
+                        />
+                      </label>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-gray-500">
+                    Este item não possui adicionais.
+                  </p>
+                )}
+              </div>
+
+              <div className="mt-6 space-y-2 border-t border-red-200 pt-4">
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <span>Base</span>
+                  <span>R$ {currentBasePrice.toFixed(2)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm text-gray-600">
+                  <span>Adicionais</span>
+                  <span>R$ {additionalTotal.toFixed(2)}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-lg font-bold text-black">
+                  <span>Total</span>
+                  <span className="text-red-600">
+                    R$ {finalModalPrice.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 border-t border-red-200 bg-white p-4">
+              <button
+                onClick={closeOptionsModal}
+                className="rounded-xl border border-red-300 bg-white px-4 py-3 font-semibold text-red-600"
+              >
+                Cancelar
+              </button>
+
+              <button
+                onClick={confirmSelectedTarget}
+                className="rounded-xl border border-red-600 bg-red-600 px-4 py-3 font-semibold text-white"
+              >
+                Adicionar ao carrinho
+              </button>
+            </div>
+          </div>
         </div>
-
-        <div className="mt-6 space-y-2 border-t border-red-200 pt-4">
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <span>Base</span>
-            <span>R$ {currentBasePrice.toFixed(2)}</span>
-          </div>
-
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <span>Adicionais</span>
-            <span>R$ {additionalTotal.toFixed(2)}</span>
-          </div>
-
-          <div className="flex items-center justify-between text-lg font-bold text-black">
-            <span>Total</span>
-            <span className="text-red-600">
-              R$ {finalModalPrice.toFixed(2)}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 border-t border-red-200 bg-white p-4">
-        <button
-          onClick={closeOptionsModal}
-          className="rounded-xl border border-red-300 bg-white px-4 py-3 font-semibold text-red-600"
-        >
-          Cancelar
-        </button>
-
-        <button
-          onClick={confirmSelectedTarget}
-          className="rounded-xl border border-red-600 bg-red-600 px-4 py-3 font-semibold text-white"
-        >
-          Adicionar ao carrinho
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+      )}
 
       {selectedCombo && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-4 md:items-center">

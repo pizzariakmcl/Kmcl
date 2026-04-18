@@ -24,7 +24,6 @@ export async function GET() {
             sortOrder: "asc",
           },
           select: {
-            sortOrder: true,
             additional: {
               select: {
                 id: true,
@@ -44,7 +43,6 @@ export async function GET() {
             sortOrder: "asc",
           },
           select: {
-            sortOrder: true,
             product: {
               select: {
                 id: true,
@@ -91,7 +89,13 @@ export async function GET() {
 
       const products = (category.productLinks || [])
         .map((link) => link.product)
-        .filter((product) => product && product.active && product.inStock);
+        .filter((product) => product && product.active && product.inStock)
+        .map((product) => ({
+          ...product,
+          productAdditionalConfigs: (product.productAdditionalConfigs || []).filter(
+            (config) => config.additional?.active !== false
+          ),
+        }));
 
       return {
         id: category.id,
@@ -110,7 +114,7 @@ export async function GET() {
     return NextResponse.json(formatted, {
       status: 200,
       headers: {
-        "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300",
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
       },
     });
   } catch (error) {
