@@ -1210,100 +1210,100 @@ export default function HomePage() {
       )}
 
       {selectedTarget && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-3 md:items-center md:p-4">
-          <div className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl">
-            <div className="overflow-y-auto overscroll-contain p-5 md:p-6">
-              <h2 className="text-2xl font-bold text-black">
-                {selectedTarget.type === "PRODUCT"
-                  ? selectedTarget.product.name
-                  : selectedTarget.name}
-              </h2>
+  <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-3 md:items-center md:p-4">
+    <div className="flex h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-3xl border border-red-200 bg-white shadow-2xl">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5 md:p-6">
+        <h2 className="text-2xl font-bold text-black">
+          {selectedTarget.type === "PRODUCT"
+            ? selectedTarget.product.name
+            : selectedTarget.name}
+        </h2>
 
-              <p className="mt-1 text-sm text-gray-600">
-                Escolha os adicionais do seu pedido
-              </p>
+        <p className="mt-1 text-sm text-gray-600">
+          Escolha os adicionais do seu pedido
+        </p>
 
-              <div className="mt-4 space-y-3">
-                {currentAdditionals.length > 0 ? (
-                  currentAdditionals.map((additional) => {
-                    const checked = isAdditionalSelected(additional.id);
+        <div className="mt-4 space-y-3">
+          {currentAdditionals.length > 0 ? (
+            currentAdditionals.map((additional) => {
+              const checked = isAdditionalSelected(additional.id);
 
-                    return (
-                      <label
-                        key={additional.id}
-                        className="flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-red-200 bg-white p-3"
-                      >
-                        <div className="min-w-0 flex-1">
-                          <p className="font-semibold text-black">
-                            {additional.name}
-                            {additional.required ? " *" : ""}
-                          </p>
+              return (
+                <label
+                  key={additional.id}
+                  className="flex cursor-pointer items-start justify-between gap-3 rounded-xl border border-red-200 bg-white p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-black">
+                      {additional.name}
+                      {additional.required ? " *" : ""}
+                    </p>
 
-                          {additional.description && (
-                            <p className="text-sm text-gray-500">
-                              {additional.description}
-                            </p>
-                          )}
+                    {additional.description && (
+                      <p className="text-sm text-gray-500">
+                        {additional.description}
+                      </p>
+                    )}
 
-                          <p className="text-sm text-red-600">
-                            + R$ {Number(additional.price).toFixed(2)}
-                          </p>
-                        </div>
+                    <p className="text-sm text-red-600">
+                      + R$ {Number(additional.price).toFixed(2)}
+                    </p>
+                  </div>
 
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => toggleAdditional(additional)}
-                          className="mt-1 h-6 w-6 shrink-0"
-                        />
-                      </label>
-                    );
-                  })
-                ) : (
-                  <p className="text-sm text-gray-500">
-                    Este item não possui adicionais.
-                  </p>
-                )}
-              </div>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleAdditional(additional)}
+                    className="mt-1 h-6 w-6 shrink-0"
+                  />
+                </label>
+              );
+            })
+          ) : (
+            <p className="text-sm text-gray-500">
+              Este item não possui adicionais.
+            </p>
+          )}
+        </div>
 
-              <div className="mt-6 space-y-2 border-t border-red-200 pt-4">
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>Base</span>
-                  <span>R$ {currentBasePrice.toFixed(2)}</span>
-                </div>
+        <div className="mt-6 space-y-2 border-t border-red-200 pt-4">
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>Base</span>
+            <span>R$ {currentBasePrice.toFixed(2)}</span>
+          </div>
 
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>Adicionais</span>
-                  <span>R$ {additionalTotal.toFixed(2)}</span>
-                </div>
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <span>Adicionais</span>
+            <span>R$ {additionalTotal.toFixed(2)}</span>
+          </div>
 
-                <div className="flex items-center justify-between text-lg font-bold text-black">
-                  <span>Total</span>
-                  <span className="text-red-600">
-                    R$ {finalModalPrice.toFixed(2)}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 border-t border-red-200 bg-white p-4">
-              <button
-                onClick={closeOptionsModal}
-                className="rounded-xl border border-red-300 bg-white px-4 py-3 font-semibold text-red-600"
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={confirmSelectedTarget}
-                className="rounded-xl border border-red-600 bg-red-600 px-4 py-3 font-semibold text-white"
-              >
-                Adicionar ao carrinho
-              </button>
-            </div>
+          <div className="flex items-center justify-between text-lg font-bold text-black">
+            <span>Total</span>
+            <span className="text-red-600">
+              R$ {finalModalPrice.toFixed(2)}
+            </span>
           </div>
         </div>
-      )}
+      </div>
+
+      <div className="shrink-0 grid grid-cols-2 gap-3 border-t border-red-200 bg-white p-4">
+        <button
+          onClick={closeOptionsModal}
+          className="rounded-xl border border-red-300 bg-white px-4 py-3 font-semibold text-red-600"
+        >
+          Cancelar
+        </button>
+
+        <button
+          onClick={confirmSelectedTarget}
+          className="rounded-xl border border-red-600 bg-red-600 px-4 py-3 font-semibold text-white"
+        >
+          Adicionar ao carrinho
+        </button>
+      </div>
+    </div>
+  </div>
+)}
 
       {selectedCombo && (
         <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/40 p-4 md:items-center">
