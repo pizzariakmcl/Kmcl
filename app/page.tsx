@@ -154,42 +154,27 @@ export default function HomePage() {
 
   async function loadData() {
   try {
-    // 🔥 tenta pegar do cache local primeiro
     const cachedMenu = localStorage.getItem("menu-cache");
-    const cachedCombos = localStorage.getItem("combos-cache");
 
-    if (cachedMenu && cachedCombos) {
+    if (cachedMenu) {
       setCategories(JSON.parse(cachedMenu));
-      setCombos(JSON.parse(cachedCombos));
     }
 
-    // 🔥 busca atualizado em segundo plano
     const menuRes = await fetch("/api/menu", {
       next: { revalidate: 60 },
     });
 
-    const combosRes = await fetch("/api/combos", {
-      next: { revalidate: 60 },
-    });
-
     const menuData = await menuRes.json().catch(() => []);
-    const combosData = await combosRes.json().catch(() => []);
 
     const validCategories = Array.isArray(menuData) ? menuData : [];
-    const validCombos = Array.isArray(combosData)
-      ? combosData.filter((combo) => combo?.active !== false)
-      : [];
 
     setCategories(validCategories);
-    setCombos(validCombos);
 
-    // 🔥 salva cache
     localStorage.setItem("menu-cache", JSON.stringify(validCategories));
-    localStorage.setItem("combos-cache", JSON.stringify(validCombos));
+
   } catch (error) {
     console.error("Erro ao carregar dados:", error);
     setCategories([]);
-    setCombos([]);
   }
 }
 
@@ -530,34 +515,25 @@ export default function HomePage() {
     alert("Pizza meio a meio adicionada ao carrinho.");
   }
 
-  function openCombo(combo: Combo) {
+  async function openCombo(combo: Combo) {
+  try {
+    const res = await fetch(`/api/combos/${combo.id}`);
+    const data = await res.json();
+
     const initialSelections: Record<string, Record<string, number>> = {};
 
-    combo.groups.forEach((group) => {
+    data.groups.forEach((group: any) => {
       initialSelections[group.id] = {};
     });
 
-    setSelectedCombo(combo);
+    setSelectedCombo(data);
     setComboSelections(initialSelections);
     setComboSearchTerm("");
     setSelectedComboAdditionals([]);
+  } catch (error) {
+    console.error("Erro ao carregar combo:", error);
   }
-
-  function closeComboModal() {
-    setSelectedCombo(null);
-    setComboSelections({});
-    setComboSearchTerm("");
-    setSelectedComboAdditionals([]);
-  }
-
-  function getComboGroupTotalSelected(groupId: string) {
-    const groupSelections = comboSelections[groupId] || {};
-
-    return Object.values(groupSelections).reduce(
-      (total, qty) => total + Number(qty || 0),
-      0
-    );
-  }
+}
 
   function incrementComboGroupProduct(group: ComboGroup, productId: string) {
     setComboSelections((prev) => {
@@ -741,7 +717,8 @@ export default function HomePage() {
 
   const selectedCategory = useMemo(() => {
     if (
-      selectedCategoryId === "TODOS" ||
+     selectedCategoryId === "TODOS"
+  ? allProducts.slice(0, 20)
       selectedCategoryId === "COMBOS"
     ) {
       return null;

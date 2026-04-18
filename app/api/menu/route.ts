@@ -11,21 +11,6 @@ export async function GET() {
         sortOrder: "asc",
       },
       include: {
-        // 🔥 ADICIONAIS DIRETO NA MESMA QUERY
-        additionalLinks: {
-          orderBy: {
-            sortOrder: "asc",
-          },
-          include: {
-            additional: {
-              where: {
-                active: true,
-              },
-            },
-          },
-        },
-
-        // 🔥 PRODUTOS OTIMIZADOS
         productLinks: {
           orderBy: {
             sortOrder: "asc",
@@ -36,19 +21,12 @@ export async function GET() {
                 active: true,
                 inStock: true,
               },
-              include: {
-                productAdditionalConfigs: {
-                  orderBy: {
-                    sortOrder: "asc",
-                  },
-                  include: {
-                    additional: {
-                      where: {
-                        active: true,
-                      },
-                    },
-                  },
-                },
+              select: {
+                id: true,
+                name: true,
+                description: true,
+                price: true,
+                imageUrl: true,
               },
             },
           },
@@ -57,11 +35,6 @@ export async function GET() {
     });
 
     const formatted = categories.map((category) => {
-      const additionals =
-        category.additionalLinks
-          ?.map((link) => link.additional)
-          .filter(Boolean) || [];
-
       const products =
         category.productLinks
           ?.map((link) => link.product)
@@ -71,30 +44,20 @@ export async function GET() {
         id: category.id,
         name: category.name,
         slug: category.slug,
-        description: category.description,
-        type: category.type,
-        selectionRequired: category.selectionRequired,
-        active: category.active,
-        sortOrder: category.sortOrder,
-        additionals,
         products,
       };
     });
 
-    // 🔥 CACHE (ESSENCIAL PRA VELOCIDADE NA VERCEL)
     return NextResponse.json(formatted, {
-      status: 200,
       headers: {
         "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
       },
     });
   } catch (error) {
-    console.error("ERRO AO BUSCAR CARDÁPIO:", error);
+    console.error("ERRO MENU:", error);
 
     return NextResponse.json(
-      {
-        error: "Erro ao buscar cardápio",
-      },
+      { error: "Erro ao carregar menu" },
       { status: 500 }
     );
   }
