@@ -3,8 +3,6 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    // 1) Busca categorias + produtos primeiro
-    // Isso garante que o cardápio volte a funcionar mesmo se os adicionais falharem.
     const categories = await prisma.category.findMany({
       where: {
         active: true,
@@ -13,19 +11,42 @@ export async function GET() {
         sortOrder: "asc",
       },
       include: {
+        // 🔥 ADICIONAIS DIRETO NA MESMA QUERY
+        additionalLinks: {
+          orderBy: {
+            sortOrder: "asc",
+          },
+          include: {
+            additional: {
+              where: {
+                active: true,
+              },
+            },
+          },
+        },
+
+        // 🔥 PRODUTOS OTIMIZADOS
         productLinks: {
           orderBy: {
             sortOrder: "asc",
           },
           include: {
             product: {
+              where: {
+                active: true,
+                inStock: true,
+              },
               include: {
                 productAdditionalConfigs: {
                   orderBy: {
                     sortOrder: "asc",
                   },
                   include: {
-                    additional: true,
+                    additional: {
+                      where: {
+                        active: true,
+                      },
+                    },
                   },
                 },
               },
@@ -35,55 +56,16 @@ export async function GET() {
       },
     });
 
-    // 2) Tenta buscar os adicionais por categoria separadamente
-    // Se der erro, o menu continua funcionando sem adicionais.
-    let additionalLinksByCategoryId: Record<string, any[]> = {};
-
-    try {
-      const categoriesWithAdditionals = await prisma.category.findMany({
-        where: {
-          active: true,
-        },
-        select: {
-          id: true,
-          additionalLinks: {
-            orderBy: {
-              sortOrder: "asc",
-            },
-            include: {
-              additional: true,
-            },
-          },
-        },
-      });
-
-      additionalLinksByCategoryId = categoriesWithAdditionals.reduce(
-        (acc, category) => {
-          acc[category.id] = Array.isArray(category.additionalLinks)
-            ? category.additionalLinks
-            : [];
-          return acc;
-        },
-        {} as Record<string, any[]>
-      );
-    } catch (additionalError) {
-      console.error(
-        "ERRO AO BUSCAR ADICIONAIS DO MENU (fallback ativado):",
-        additionalError
-      );
-      additionalLinksByCategoryId = {};
-    }
-
     const formatted = categories.map((category) => {
-      const rawAdditionalLinks = additionalLinksByCategoryId[category.id] || [];
+      const additionals =
+        category.additionalLinks
+          ?.map((link) => link.additional)
+          .filter(Boolean) || [];
 
-      const additionals = rawAdditionalLinks
-        .map((link) => link.additional)
-        .filter((additional) => additional && additional.active);
-
-      const products = (category.productLinks || [])
-        .map((link) => link.product)
-        .filter((product) => product && product.active && product.inStock);
+      const products =
+        category.productLinks
+          ?.map((link) => link.product)
+          .filter(Boolean) || [];
 
       return {
         id: category.id,
@@ -99,14 +81,19 @@ export async function GET() {
       };
     });
 
-    return NextResponse.json(formatted, { status: 200 });
+    // 🔥 CACHE (ESSENCIAL PRA VELOCIDADE NA VERCEL)
+    return NextResponse.json(formatted, {
+      status: 200,
+      headers: {
+        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+      },
+    });
   } catch (error) {
     console.error("ERRO AO BUSCAR CARDÁPIO:", error);
 
     return NextResponse.json(
       {
         error: "Erro ao buscar cardápio",
-        details: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
     );

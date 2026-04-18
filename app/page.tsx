@@ -153,27 +153,45 @@ export default function HomePage() {
   }, []);
 
   async function loadData() {
-    try {
-      const menuRes = await fetch("/api/menu", {
-        cache: "no-store",
-      });
-      const combosRes = await fetch("/api/combos", { cache: "no-store" });
+  try {
+    // 🔥 tenta pegar do cache local primeiro
+    const cachedMenu = localStorage.getItem("menu-cache");
+    const cachedCombos = localStorage.getItem("combos-cache");
 
-      const menuData = await menuRes.json().catch(() => []);
-      const combosData = await combosRes.json().catch(() => []);
-
-      setCategories(Array.isArray(menuData) ? menuData : []);
-      setCombos(
-        Array.isArray(combosData)
-          ? combosData.filter((combo) => combo?.active !== false)
-          : []
-      );
-    } catch (error) {
-      console.error("Erro ao carregar dados:", error);
-      setCategories([]);
-      setCombos([]);
+    if (cachedMenu && cachedCombos) {
+      setCategories(JSON.parse(cachedMenu));
+      setCombos(JSON.parse(cachedCombos));
     }
+
+    // 🔥 busca atualizado em segundo plano
+    const menuRes = await fetch("/api/menu", {
+      next: { revalidate: 60 },
+    });
+
+    const combosRes = await fetch("/api/combos", {
+      next: { revalidate: 60 },
+    });
+
+    const menuData = await menuRes.json().catch(() => []);
+    const combosData = await combosRes.json().catch(() => []);
+
+    const validCategories = Array.isArray(menuData) ? menuData : [];
+    const validCombos = Array.isArray(combosData)
+      ? combosData.filter((combo) => combo?.active !== false)
+      : [];
+
+    setCategories(validCategories);
+    setCombos(validCombos);
+
+    // 🔥 salva cache
+    localStorage.setItem("menu-cache", JSON.stringify(validCategories));
+    localStorage.setItem("combos-cache", JSON.stringify(validCombos));
+  } catch (error) {
+    console.error("Erro ao carregar dados:", error);
+    setCategories([]);
+    setCombos([]);
   }
+}
 
   function saveCart(nextCart: CartItem[]) {
     setCart(nextCart);
