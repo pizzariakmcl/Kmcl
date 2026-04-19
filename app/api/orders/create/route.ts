@@ -111,15 +111,19 @@ export async function POST(req: NextRequest) {
     });
 
     const order = await prisma.order.create({
-      data: {
-        code: generateOrderCode(),
-        customerId: createdCustomer.id,
-        paymentMethod,
-        observation,
-        total: totalAmount,
-        status: "NOVO" as OrderStatus,
-        items: {
-          create: items.map((item: any) => {
+  data: {
+    code: generateOrderCode(),
+    customerId: createdCustomer.id,
+    paymentMethod,
+    observation,
+    total: totalAmount,
+    status: "NOVO" as OrderStatus,
+
+    channel: "ONLINE",
+    orderType: "DELIVERY",
+
+    items: {
+      create: items.map((item: any) => {
             const rawProductId =
               item?.productId && String(item.productId).trim() !== ""
                 ? String(item.productId).trim()

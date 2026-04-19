@@ -39,6 +39,8 @@ type Order = {
   archived: boolean;
   archivedAt?: string | null;
   changeFor?: string | null;
+  channel?: string;
+  orderType?: string;
   customer?: Customer | null;
   items?: OrderItem[];
 };
@@ -708,6 +710,25 @@ Qualquer dúvida, estamos à disposição!`;
           <strong>Endereço:</strong> {formatAddress(order.customer)}
         </p>
 
+<p className="mb-1">
+  <strong>Origem:</strong>{" "}
+  <span
+    className={`rounded px-2 py-1 text-xs font-bold text-white ${
+      order.channel === "LOJA" ? "bg-purple-600" : "bg-blue-600"
+    }`}
+  >
+    {order.channel === "LOJA" ? "Loja / Atendente" : "Online"}
+  </span>
+</p>
+
+<p className="mb-1">
+  <strong>Tipo:</strong>{" "}
+  {order.orderType === "PICKUP"
+    ? "Retirada"
+    : order.orderType === "DINE_IN"
+    ? "Consumir no local"
+    : "Entrega"}
+</p>
         {renderItems(order)}
 
         <p className="mb-1">

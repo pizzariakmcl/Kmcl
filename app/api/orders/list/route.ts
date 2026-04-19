@@ -26,12 +26,16 @@ export async function GET() {
       archivedAt: order.archivedAt || null,
       changeFor: order.changeFor || null,
 
+      channel: order.channel || "ONLINE",
+      orderType: order.orderType || "DELIVERY",
+
       customer: order.customer
         ? {
             id: order.customer.id,
             name: String(order.customer.name || "").trim(),
             whatsapp: String(order.customer.whatsapp || "").trim(),
             email: order.customer.email || null,
+            cpf: order.customer.cpf || null,
             address: String(order.customer.address || "").trim(),
             number: String(order.customer.number || "").trim(),
             complement: String(order.customer.complement || "").trim(),

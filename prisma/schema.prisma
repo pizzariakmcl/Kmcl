@@ -212,11 +212,15 @@ model Customer {
   complement   String?
   neighborhood String?
   city         String?
+  cpf          String?
 
   orders Order[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([whatsapp])
 }
 
 model Order {
@@ -229,6 +233,9 @@ model Order {
   archived      Boolean       @default(false)
   archivedAt    DateTime?
   total         Float         @default(0)
+
+  channel   String @default("ONLINE")
+  orderType String @default("DELIVERY")
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
