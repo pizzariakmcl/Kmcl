@@ -23,6 +23,11 @@ type ProductAdditionalInput = {
   sortOrder?: number;
 };
 
+type CategoryPriceInput = {
+  categoryId: string;
+  customPrice?: number | string | null;
+};
+
 export async function PUT(req: NextRequest, context: RouteContext) {
   try {
     const { id } = await context.params;
@@ -62,6 +67,40 @@ export async function PUT(req: NextRequest, context: RouteContext) {
       ),
     ];
 
+    const categoryPricesRaw: CategoryPriceInput[] = Array.isArray(body?.categoryPrices)
+      ? body.categoryPrices
+      : [];
+
+    const categoryPricesMap = new Map<string, number | null>();
+
+    for (const item of categoryPricesRaw) {
+      const categoryId = String(item?.categoryId ?? "").trim();
+      if (!categoryId) continue;
+
+      const rawValue = item?.customPrice;
+
+      if (
+        rawValue === undefined ||
+        rawValue === null ||
+        String(rawValue).trim() === ""
+      ) {
+        categoryPricesMap.set(categoryId, null);
+        continue;
+      }
+
+      const normalized = String(rawValue).replace(",", ".").trim();
+      const parsed = Number(normalized);
+
+      if (Number.isNaN(parsed) || parsed < 0) {
+        return NextResponse.json(
+          { error: `Preço inválido para a categoria ${categoryId}` },
+          { status: 400 }
+        );
+      }
+
+      categoryPricesMap.set(categoryId, parsed);
+    }
+
     const productAdditionalConfigs: ProductAdditionalInput[] = Array.isArray(
       body?.productAdditionalConfigs
     )
@@ -88,7 +127,7 @@ export async function PUT(req: NextRequest, context: RouteContext) {
 
     if (Number.isNaN(price) || price < 0) {
       return NextResponse.json(
-        { error: "Preço inválido" },
+        { error: "Preço base inválido" },
         { status: 400 }
       );
     }
@@ -171,10 +210,16 @@ export async function PUT(req: NextRequest, context: RouteContext) {
         categoryId: categoryIds[0],
         categories: {
           deleteMany: {},
-          create: categoryIds.map((categoryId: string, index: number) => ({
-            categoryId,
-            sortOrder: index,
-          })),
+          create: categoryIds.map((categoryId: string, index: number) => {
+            const customPriceValue = categoryPricesMap.get(categoryId);
+
+            return {
+              categoryId,
+              sortOrder: index,
+              customPrice:
+                customPriceValue !== undefined ? customPriceValue : null,
+            };
+          }),
         },
         productAdditionalConfigs: {
           deleteMany: {},

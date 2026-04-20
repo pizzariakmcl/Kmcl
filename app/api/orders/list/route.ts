@@ -4,14 +4,16 @@ import { prisma } from "@/lib/prisma";
 export async function GET() {
   try {
     const orders = await prisma.order.findMany({
-      orderBy: {
-        createdAt: "desc",
-      },
-      include: {
-        customer: true,
-        items: true,
-      },
-    });
+  orderBy: {
+    createdAt: "desc",
+  },
+  include: {
+    customer: true,
+    items: true,
+    driver: true,
+    deliveryBatch: true,
+  },
+});
 
     const normalizedOrders = orders.map((order) => ({
       id: order.id,
@@ -25,6 +27,12 @@ export async function GET() {
       archived: Boolean(order.archived),
       archivedAt: order.archivedAt || null,
       changeFor: order.changeFor || null,
+driverId: order.driverId || null,
+driverName: order.driver?.name || null,
+deliveryBatchId: order.deliveryBatchId || null,
+deliveryBatchCode: order.deliveryBatch?.code || null,
+deliveryRouteOrder: order.deliveryRouteOrder || null,
+dispatchedAt: order.dispatchedAt || null,
 
       channel: order.channel || "ONLINE",
       orderType: order.orderType || "DELIVERY",

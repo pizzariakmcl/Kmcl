@@ -24,6 +24,11 @@ type ProductAdditionalConfig = {
   sortOrder: number;
 };
 
+type CategoryPrice = {
+  categoryId: string;
+  customPrice: string;
+};
+
 type Product = {
   id: string;
   name: string;
@@ -35,6 +40,7 @@ type Product = {
   categories?: {
     categoryId: string;
     sortOrder: number;
+    customPrice?: number | null;
     category: {
       id: string;
       name: string;
@@ -77,6 +83,7 @@ export default function ProdutosPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [selectedConfigs, setSelectedConfigs] = useState<ProductAdditionalConfig[]>([]);
+  const [categoryPrices, setCategoryPrices] = useState<CategoryPrice[]>([]);
 
   const primaryCategoryId = form.categoryIds[0] || "";
 
@@ -123,6 +130,7 @@ export default function ProdutosPage() {
     setForm(initialForm);
     setEditingId(null);
     setSelectedConfigs([]);
+    setCategoryPrices([]);
   }
 
   async function handleUpload(file: File) {
@@ -211,6 +219,34 @@ export default function ProdutosPage() {
         categoryIds: nextCategoryIds,
       };
     });
+
+    setCategoryPrices((prev) => {
+      const exists = prev.some((item) => item.categoryId === categoryId);
+
+      if (exists) {
+        return prev.filter((item) => item.categoryId !== categoryId);
+      }
+
+      return [...prev, { categoryId, customPrice: "" }];
+    });
+  }
+
+  function getCategoryCustomPrice(categoryId: string) {
+    return categoryPrices.find((item) => item.categoryId === categoryId)?.customPrice || "";
+  }
+
+  function setCategoryCustomPrice(categoryId: string, value: string) {
+    setCategoryPrices((prev) => {
+      const exists = prev.some((item) => item.categoryId === categoryId);
+
+      if (!exists) {
+        return [...prev, { categoryId, customPrice: value }];
+      }
+
+      return prev.map((item) =>
+        item.categoryId === categoryId ? { ...item, customPrice: value } : item
+      );
+    });
   }
 
   async function handleSubmit() {
@@ -220,8 +256,19 @@ export default function ProdutosPage() {
     }
 
     if (Number.isNaN(Number(form.price)) || Number(form.price) < 0) {
-      alert("Preço inválido");
+      alert("Preço base inválido");
       return;
+    }
+
+    for (const item of categoryPrices) {
+      if (!form.categoryIds.includes(item.categoryId)) continue;
+      if (item.customPrice.trim() === "") continue;
+
+      const parsed = Number(item.customPrice);
+      if (Number.isNaN(parsed) || parsed < 0) {
+        alert("Um dos preços por categoria está inválido");
+        return;
+      }
     }
 
     try {
@@ -234,6 +281,10 @@ export default function ProdutosPage() {
         price: Number(form.price),
         imageUrl: form.imageUrl.trim() || null,
         categoryIds: form.categoryIds,
+        categoryPrices: form.categoryIds.map((categoryId) => ({
+  categoryId,
+  customPrice: getCategoryCustomPrice(categoryId),
+})),
         productAdditionalConfigs: selectedConfigs.map((item, index) => ({
           additionalId: item.additionalId,
           required: item.required,
@@ -286,6 +337,16 @@ export default function ProdutosPage() {
       inStock: product.inStock,
     });
 
+    setCategoryPrices(
+      (product.categories || []).map((item) => ({
+        categoryId: item.categoryId,
+        customPrice:
+          item.customPrice !== undefined && item.customPrice !== null
+            ? String(item.customPrice)
+            : "",
+      }))
+    );
+
     setSelectedConfigs(
       (product.productAdditionalConfigs || []).map((config, index) => ({
         additionalId: config.additionalId,
@@ -323,8 +384,8 @@ export default function ProdutosPage() {
   }
 
   return (
-    <main className="p-10">
-      <h1 className="mb-6 text-3xl font-bold">Admin • Produtos</h1>
+    <main className="p-4 text-black md:p-10">
+      <h1 className="mb-6 text-2xl font-bold md:text-3xl">Admin • Produtos</h1>
 
       <div className="mb-8 rounded-xl border bg-white p-4 shadow-sm">
         <h2 className="mb-4 text-xl font-semibold">
@@ -337,27 +398,27 @@ export default function ProdutosPage() {
             placeholder="Nome do produto"
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            className="rounded border px-3 py-2"
+            className="rounded border px-3 py-2 text-black"
           />
 
           <textarea
             placeholder="Descrição"
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
-            className="rounded border px-3 py-2"
+            className="rounded border px-3 py-2 text-black"
           />
 
           <input
             type="number"
             step="0.01"
-            placeholder="Preço"
+            placeholder="Preço base do produto"
             value={form.price}
             onChange={(e) => setForm({ ...form, price: e.target.value })}
-            className="rounded border px-3 py-2"
+            className="rounded border px-3 py-2 text-black"
           />
 
           <div className="space-y-2 rounded border p-3">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-black">
               Imagem do produto
             </label>
 
@@ -389,35 +450,55 @@ export default function ProdutosPage() {
           </div>
 
           <div className="rounded border p-3">
-            <p className="mb-3 font-medium text-gray-900">Categorias do produto</p>
+            <p className="mb-3 font-medium text-black">Categorias do produto</p>
 
-            <div className="grid gap-2 md:grid-cols-2">
+            <div className="space-y-3">
               {categories.map((category) => {
                 const checked = form.categoryIds.includes(category.id);
 
                 return (
-                  <label
-                    key={category.id}
-                    className="flex items-center gap-2 rounded border p-2"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => handleCategoryToggle(category.id)}
-                    />
-                    {category.name}
-                  </label>
+                  <div key={category.id} className="rounded border p-3">
+                    <label className="mb-2 flex items-center gap-2 font-medium text-black">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => handleCategoryToggle(category.id)}
+                      />
+                      {category.name}
+                    </label>
+
+                    {checked && (
+                      <div className="mt-2">
+                        <label className="mb-1 block text-sm text-gray-700">
+                          Preço nesta categoria
+                        </label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="Deixe vazio para usar o preço base"
+                          value={getCategoryCustomPrice(category.id)}
+                          onChange={(e) =>
+                            setCategoryCustomPrice(category.id, e.target.value)
+                          }
+                          className="w-full rounded border px-3 py-2 text-black"
+                        />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Se não preencher, o sistema usa o preço base do produto.
+                        </p>
+                      </div>
+                    )}
+                  </div>
                 );
               })}
             </div>
 
             <p className="mt-2 text-xs text-gray-500">
-              O produto pode estar em várias categorias ao mesmo tempo.
+              Agora o mesmo produto pode ter preços diferentes por categoria.
             </p>
           </div>
 
           <div className="rounded border p-3">
-            <p className="mb-3 font-medium text-gray-900">
+            <p className="mb-3 font-medium text-black">
               Adicionais do produto
             </p>
 
@@ -432,7 +513,7 @@ export default function ProdutosPage() {
                         key={additional.id}
                         className="rounded border p-3"
                       >
-                        <label className="flex items-center gap-2 font-medium text-gray-900">
+                        <label className="flex items-center gap-2 font-medium text-black">
                           <input
                             type="checkbox"
                             checked={selected}
@@ -488,7 +569,7 @@ export default function ProdutosPage() {
             )}
           </div>
 
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-black">
             <input
               type="checkbox"
               checked={form.active}
@@ -499,7 +580,7 @@ export default function ProdutosPage() {
             Produto ativo
           </label>
 
-          <label className="flex items-center gap-2">
+          <label className="flex items-center gap-2 text-black">
             <input
               type="checkbox"
               checked={form.inStock}
@@ -565,18 +646,26 @@ export default function ProdutosPage() {
                   </div>
 
                   <div className="flex-1">
-                    <p className="font-semibold">{product.name}</p>
+                    <p className="font-semibold text-black">{product.name}</p>
                     <p className="text-sm text-gray-600">
                       {product.description}
                     </p>
                     <p className="text-sm text-gray-500">
                       Categorias:{" "}
                       {product.categories && product.categories.length > 0
-                        ? product.categories.map((item) => item.category.name).join(", ")
+                        ? product.categories
+                            .map((item) => {
+                              const custom =
+                                item.customPrice !== undefined && item.customPrice !== null
+                                  ? ` (R$ ${Number(item.customPrice).toFixed(2)})`
+                                  : "";
+                              return `${item.category.name}${custom}`;
+                            })
+                            .join(", ")
                         : "Sem categoria"}
                     </p>
                     <p className="text-sm text-gray-500">
-                      Preço: R$ {Number(product.price).toFixed(2)}
+                      Preço base: R$ {Number(product.price).toFixed(2)}
                     </p>
                     <p className="text-sm text-gray-500">
                       Ativo: {product.active ? "Sim" : "Não"} • Estoque:{" "}

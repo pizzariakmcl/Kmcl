@@ -28,6 +28,18 @@ enum PaymentMethod {
   CREDITO
 }
 
+enum DeliveryBatchStatus {
+  MONTADO
+  ENVIADO
+  EM_ROTA
+  FINALIZADO
+}
+
+enum RouteMode {
+  NEAR_TO_FAR
+  FAR_TO_NEAR
+}
+
 model Category {
   id                String       @id @default(cuid())
   name              String
@@ -62,7 +74,6 @@ model Product {
   category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   categories ProductCategory[]
-
   orderItems OrderItem[]
 
   productAdditionalConfigs ProductAdditional[]
@@ -73,10 +84,12 @@ model Product {
 }
 
 model ProductCategory {
-  id         String @id @default(cuid())
-  productId  String
-  categoryId String
-  sortOrder  Int    @default(0)
+  id          String  @id @default(cuid())
+  productId   String
+  categoryId  String
+  sortOrder   Int     @default(0)
+  customPrice Float?
+  active      Boolean @default(true)
 
   product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
@@ -223,13 +236,49 @@ model Customer {
   @@index([whatsapp])
 }
 
+model Driver {
+  id        String  @id @default(cuid())
+  name      String
+  whatsapp  String
+  active    Boolean @default(true)
+
+  orders  Order[]
+  batches DeliveryBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([whatsapp])
+}
+
+model DeliveryBatch {
+  id         String              @id @default(cuid())
+  code       String              @unique
+  driverId    String
+  routeMode  RouteMode
+  status     DeliveryBatchStatus @default(MONTADO)
+  mapsUrl    String?
+  notes      String?
+
+  driver Driver @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+}
+
 model Order {
   id            String        @id @default(cuid())
   code          String?       @unique
   status        OrderStatus   @default(NOVO)
+
   paymentMethod PaymentMethod @default(PIX)
   changeFor     String?
   observation   String?
+
   archived      Boolean       @default(false)
   archivedAt    DateTime?
   total         Float         @default(0)
@@ -239,6 +288,16 @@ model Order {
 
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  // 👇 NOVO
+  driverId           String?
+  driver             Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  deliveryBatchId    String?
+  deliveryBatch      DeliveryBatch? @relation(fields: [deliveryBatchId], references: [id], onDelete: SetNull)
+
+  deliveryRouteOrder Int?
+  dispatchedAt       DateTime?
 
   items OrderItem[]
 

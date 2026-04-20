@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { CategoryType } from "@prisma/client";
 
 function makeSlug(value: string) {
   return value
@@ -36,14 +37,16 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log("BODY CATEGORY:", body);
 
     const name = String(body?.name ?? "").trim();
+
     const description =
       body?.description !== undefined && body?.description !== null
         ? String(body.description).trim()
         : null;
 
-    const type =
+    const type: CategoryType =
       body?.type === "PIZZA_HALF_HALF" ? "PIZZA_HALF_HALF" : "NORMAL";
 
     const selectionRequired =
@@ -51,9 +54,10 @@ export async function POST(req: NextRequest) {
         ? false
         : Boolean(body.selectionRequired);
 
-    const active = body?.active === undefined ? true : Boolean(body.active);
+    const active =
+      body?.active === undefined ? true : Boolean(body.active);
 
-    const sortOrder =
+    const sortOrderRaw =
       body?.sortOrder === undefined || body?.sortOrder === null
         ? 0
         : Number(body.sortOrder);
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (Number.isNaN(sortOrder)) {
+    if (Number.isNaN(sortOrderRaw)) {
       return NextResponse.json(
         { error: "Ordem inválida" },
         { status: 400 }
@@ -80,6 +84,7 @@ export async function POST(req: NextRequest) {
 
     const existingSlug = await prisma.category.findUnique({
       where: { slug },
+      select: { id: true },
     });
 
     if (existingSlug) {
@@ -94,7 +99,7 @@ export async function POST(req: NextRequest) {
         type,
         selectionRequired,
         active,
-        sortOrder,
+        sortOrder: sortOrderRaw,
       },
     });
 

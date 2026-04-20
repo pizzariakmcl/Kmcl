@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export async function GET() {
   try {
     const categories = await prisma.category.findMany({
@@ -43,6 +46,9 @@ export async function GET() {
             sortOrder: "asc",
           },
           select: {
+            categoryId: true,
+            customPrice: true,
+            sortOrder: true,
             product: {
               select: {
                 id: true,
@@ -88,14 +94,22 @@ export async function GET() {
         .filter((additional) => additional && additional.active);
 
       const products = (category.productLinks || [])
-        .map((link) => link.product)
-        .filter((product) => product && product.active && product.inStock)
-        .map((product) => ({
-          ...product,
-          productAdditionalConfigs: (product.productAdditionalConfigs || []).filter(
-            (config) => config.additional?.active !== false
-          ),
-        }));
+  .filter((link) => link.product && link.product.active && link.product.inStock)
+  .map((link) => {
+    const basePrice = Number(link.product.price || 0);
+    const customPrice =
+      link.customPrice !== null && link.customPrice !== undefined
+        ? Number(link.customPrice)
+        : null;
+
+    return {
+      ...link.product,
+      categoryPrice: customPrice ?? basePrice,
+      productAdditionalConfigs: (link.product.productAdditionalConfigs || []).filter(
+        (config) => config.additional?.active !== false
+      ),
+    };
+  });
 
       return {
         id: category.id,
@@ -114,7 +128,7 @@ export async function GET() {
     return NextResponse.json(formatted, {
       status: 200,
       headers: {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "no-store, max-age=0",
       },
     });
   } catch (error) {

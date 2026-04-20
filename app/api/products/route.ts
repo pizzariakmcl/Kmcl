@@ -17,6 +17,11 @@ type ProductAdditionalInput = {
   sortOrder?: number;
 };
 
+type CategoryPriceInput = {
+  categoryId: string;
+  customPrice?: number | string | null;
+};
+
 export async function GET() {
   try {
     const products = await prisma.product.findMany({
@@ -95,6 +100,32 @@ export async function POST(req: NextRequest) {
       ),
     ];
 
+    const categoryPricesRaw: CategoryPriceInput[] = Array.isArray(body?.categoryPrices)
+      ? body.categoryPrices
+      : [];
+
+    const categoryPricesMap = new Map<string, number | null>();
+    for (const item of categoryPricesRaw) {
+      const categoryId = String(item?.categoryId ?? "").trim();
+      if (!categoryId) continue;
+
+      const raw = item?.customPrice;
+      if (raw === undefined || raw === null || String(raw).trim() === "") {
+        categoryPricesMap.set(categoryId, null);
+        continue;
+      }
+
+      const parsed = Number(raw);
+      if (Number.isNaN(parsed) || parsed < 0) {
+        return NextResponse.json(
+          { error: `Preço inválido para a categoria ${categoryId}` },
+          { status: 400 }
+        );
+      }
+
+      categoryPricesMap.set(categoryId, parsed);
+    }
+
     const productAdditionalConfigs: ProductAdditionalInput[] = Array.isArray(
       body?.productAdditionalConfigs
     )
@@ -117,7 +148,7 @@ export async function POST(req: NextRequest) {
 
     if (Number.isNaN(price) || price < 0) {
       return NextResponse.json(
-        { error: "Preço inválido" },
+        { error: "Preço base inválido" },
         { status: 400 }
       );
     }
@@ -185,11 +216,17 @@ export async function POST(req: NextRequest) {
         sortOrder,
         categoryId: categoryIds[0],
         categories: {
-          create: categoryIds.map((categoryId: string, index: number) => ({
-            categoryId,
-            sortOrder: index,
-          })),
-        },
+  create: categoryIds.map((categoryId: string, index: number) => {
+    const customPriceValue = categoryPricesMap.get(categoryId);
+
+    return {
+      categoryId,
+      sortOrder: index,
+      customPrice:
+        customPriceValue !== undefined ? customPriceValue : null,
+    };
+  }),
+},
         productAdditionalConfigs: {
           create: validConfigs,
         },

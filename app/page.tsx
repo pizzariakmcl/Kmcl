@@ -28,6 +28,7 @@ type Product = {
   slug: string;
   description?: string | null;
   price: number;
+  categoryPrice?: number;
   imageUrl?: string | null;
   active: boolean;
   inStock: boolean;
@@ -116,6 +117,10 @@ type SelectedTarget =
       productId: string;
     };
 
+function getDisplayPrice(product: Product) {
+  return Number(product.categoryPrice ?? product.price ?? 0);
+}
+
 export default function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [combos, setCombos] = useState<Combo[]>([]);
@@ -155,9 +160,9 @@ export default function HomePage() {
   async function loadData() {
     try {
       const [menuRes, combosRes] = await Promise.all([
-        fetch("/api/menu"),
-        fetch("/api/combos"),
-      ]);
+  fetch(`/api/menu?t=${Date.now()}`, { cache: "no-store" }),
+  fetch(`/api/combos?t=${Date.now()}`, { cache: "no-store" }),
+]);
 
       const [menuData, combosData] = await Promise.all([
         menuRes.json().catch(() => []),
@@ -243,7 +248,7 @@ export default function HomePage() {
         id: crypto.randomUUID(),
         productId: product.id,
         name: product.name,
-        price: Number(product.price),
+        price: getDisplayPrice(product),
         quantity: 1,
         additionalIds: [],
         additionalNames: [],
@@ -362,8 +367,8 @@ export default function HomePage() {
     if (!selectedTarget) return 0;
 
     if (selectedTarget.type === "PRODUCT") {
-      return Number(selectedTarget.product.price || 0);
-    }
+  return getDisplayPrice(selectedTarget.product);
+}
 
     return Number(selectedTarget.basePrice || 0);
   }, [selectedTarget]);
@@ -467,14 +472,14 @@ export default function HomePage() {
   }
 
   function getHalfHalfPrice() {
-    if (selectedFlavors.length === 0) return 0;
-    if (selectedFlavors.length === 1) return Number(selectedFlavors[0].price);
+  if (selectedFlavors.length === 0) return 0;
+  if (selectedFlavors.length === 1) return getDisplayPrice(selectedFlavors[0]);
 
-    return Math.max(
-      Number(selectedFlavors[0].price),
-      Number(selectedFlavors[1].price)
-    );
-  }
+  return Math.max(
+    getDisplayPrice(selectedFlavors[0]),
+    getDisplayPrice(selectedFlavors[1])
+  );
+}
 
   function addHalfHalfToCart() {
     if (selectedFlavors.length !== 2) {
@@ -929,10 +934,9 @@ export default function HomePage() {
                     </h2>
                     <p className="text-sm text-gray-600">
                       {combo.description}
-                    </p>
-                    <p className="mt-1 font-bold text-red-600">
-                      R$ {Number(combo.price).toFixed(2)}
-                    </p>
+                    </p><p className="mt-1 font-bold text-red-600">
+  R$ {Number(combo.price).toFixed(2)}
+</p>
                     <p className="mt-1 text-xs text-gray-500">
                       {combo.groups?.length || 0} grupo(s) configurado(s)
                     </p>
@@ -1004,6 +1008,8 @@ export default function HomePage() {
             </div>
           ) : (
             filteredProducts.map((product) => {
+console.log("PRODUCT MENU", product);
+
               const quantity = getProductQuantity(product.id);
               const flavorSelected = isFlavorSelected(product.id);
               const productHasAdditionals = hasAdditionalsForProduct(
@@ -1036,10 +1042,9 @@ export default function HomePage() {
                       {product.description}
                     </p>
                     <p className="mt-1 font-bold text-red-600">
-                      R$ {Number(product.price).toFixed(2)}
-                    </p>
-
-                    {productHasAdditionals && (
+  		   R$ {getDisplayPrice(product).toFixed(2)}
+		    </p>
+		     {productHasAdditionals && (
                       <p className="mt-1 text-xs text-gray-500">
                         Possui adicionais para escolher
                       </p>
